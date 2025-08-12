@@ -37,8 +37,8 @@ class Announcer:
             json_str = json_block_match.group(0).strip()
 
             # 2. (디버깅용) 추출된 JSON 확인
-            print("[추출된 JSON]")
-            print(json_str)
+            #print("[추출된 JSON]")
+            #print(json_str)
 
             # 3. JSON 파싱
             data = json.loads(json_str)
