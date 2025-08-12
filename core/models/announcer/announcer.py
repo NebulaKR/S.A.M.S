@@ -2,6 +2,7 @@ from core.models.announcer.prompt_builder import build_prompt
 from core.models.announcer.event_schema import Event
 import requests
 import re
+import json
 
 class Announcer:
     def __init__(self, model: str = "llama3", host: str = "http://localhost:11434"):
@@ -19,30 +20,41 @@ class Announcer:
         data = response.json()
         output = data["response"].strip()
 
-        print("[LLM 응답 ↓↓↓]")
+        print("[LLM Response Start ↓↓↓]")
         print(output)
-        print("[↑↑↑ 응답 끝]")
+        print("[↑↑↑ Response Ended]")
 
         return self._parse_response(output)
 
 
     def _parse_response(self, output: str) -> Event:
-        # 정규식 기반으로 파싱 (간단한 구조화)
-        header_match = re.search(r"\[(.*?)\] - (.*?) - ([\-\d\.]+) - (\d) - (\w+)", output)
-        article_match = re.search(r"뉴스 기사:\s*(.*)", output, re.DOTALL)
+        try:
+            # 1. JSON 블록 정확히 추출 (가장 바깥 중괄호만)
+            json_block_match = re.search(r"\{[\s\S]*\}", output)
+            if not json_block_match:
+                raise ValueError("JSON 블록을 찾을 수 없습니다.")
 
-        if not header_match or not article_match:
-            raise ValueError("LLM 응답 형식이 예상과 다릅니다")
+            json_str = json_block_match.group(0).strip()
 
-        event_type, category, sentiment, impact_level, duration = header_match.groups()
-        news_article = article_match.group(1).strip()
+            # 2. (디버깅용) 추출된 JSON 확인
+            print("[추출된 JSON]")
+            print(json_str)
 
-        return Event(
-            event_type=event_type.strip(),
-            category=category.strip(),
-            sentiment=float(sentiment),
-            impact_level=int(impact_level),
-            duration=duration.strip(),
-            news_article=news_article
-        )
+            # 3. JSON 파싱
+            data = json.loads(json_str)
+
+            # 4. Event 객체 생성
+            return Event(
+                event_type=data["event_type"],
+                category=data["category"],
+                sentiment=float(data["sentiment"]),
+                impact_level=int(data["impact_level"]),
+                duration=data["duration"],
+                news_article=data["news_article"]
+            )
+
+        except Exception as e:
+            print("파싱 실패. LLM 응답 전체 ↓↓↓")
+            print(output)
+            raise e
 

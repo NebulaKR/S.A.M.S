@@ -10,5 +10,5 @@ if __name__ == "__main__":
     announcer = Announcer()
     event = announcer.generate_event(past)
 
-    print("🔔 생성된 사건:")
+    print(" 생성된 사건:")
     print(event)
