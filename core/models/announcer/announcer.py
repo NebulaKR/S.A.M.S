@@ -1,60 +1,72 @@
-from core.models.announcer.prompt_builder import build_prompt
-from core.models.announcer.event_schema import Event
-import requests
-import re
-import json
+from core.models.announcer.event import Event
+from core.models.announcer.news import News, Media
+from utils.id_generator import generate_id
+from llama_client import query_llm  # LLaMA용 LLM wrapper
 
 class Announcer:
-    def __init__(self, model: str = "llama3", host: str = "http://localhost:11434"):
-        self.model = model
-        self.api_url = f"{host}/api/generate"
+    def generate_news_for_event(
+        self,
+        event: Event,
+        outlets: list[Media],
+        past_events: list[Event] = None
+    ) -> list[News]:
+        """주어진 사건에 대해 각 언론사별 뉴스 기사를 생성하고 연결한다."""
 
-    def generate_event(self, past_events: list[str]) -> Event:
-        prompt = build_prompt(past_events)
+        news_list = []
 
-        response = requests.post(self.api_url, json={
-            "model": self.model,
-            "prompt": prompt,
-            "stream": False
-        })
-        data = response.json()
-        output = data["response"].strip()
+        for outlet in outlets:
+            article_text = self.generate_news(event, outlet, past_events)
+            news_id = generate_id("news")
 
-        print("[LLM Response Start ↓↓↓]")
-        print(output)
-        print("[↑↑↑ Response Ended]")
-
-        return self._parse_response(output)
-
-
-    def _parse_response(self, output: str) -> Event:
-        try:
-            # 1. JSON 블록 정확히 추출 (가장 바깥 중괄호만)
-            json_block_match = re.search(r"\{[\s\S]*\}", output)
-            if not json_block_match:
-                raise ValueError("JSON 블록을 찾을 수 없습니다.")
-
-            json_str = json_block_match.group(0).strip()
-
-            # 2. (디버깅용) 추출된 JSON 확인
-            #print("[추출된 JSON]")
-            #print(json_str)
-
-            # 3. JSON 파싱
-            data = json.loads(json_str)
-
-            # 4. Event 객체 생성
-            return Event(
-                event_type=data["event_type"],
-                category=data["category"],
-                sentiment=float(data["sentiment"]),
-                impact_level=int(data["impact_level"]),
-                duration=data["duration"],
-                news_article=data["news_article"]
+            news = News(
+                id=news_id,
+                media=outlet.name,
+                article_text=article_text
             )
 
-        except Exception as e:
-            print("파싱 실패. LLM 응답 전체 ↓↓↓")
-            print(output)
-            raise e
+            news_list.append(news)
+            event.news_article.append(news_id)  # 문자열 ID만 추가
 
+        return news_list
+
+    def generate_news(
+        self,
+        current_event: Event,
+        outlet: Media,
+        past_events: list[Event] = None
+    ) -> str:
+        """사건과 언론사 정보를 기반으로 뉴스 기사 텍스트 생성"""
+
+        prompt = "다음은 지금까지 발생한 사건들의 요약입니다:\n\n"
+
+        if past_events:
+            for i, ev in enumerate(past_events, 1):
+                prompt += (
+                    f"{i}. 사건명: {ev.event_type} / 카테고리: {ev.category} / "
+                    f"감성: {ev.sentiment} / 영향 수준: {ev.impact_level} / 지속: {ev.duration}\n"
+                )
+        else:
+            prompt += "이전 사건은 없습니다.\n"
+
+        prompt += "\n이후, 현재 사건은 다음과 같습니다:\n\n"
+        prompt += (
+            f"[사건 정보]\n"
+            f"- 제목: {current_event.event_type}\n"
+            f"- 카테고리: {current_event.category}\n"
+            f"- 감성 점수: {current_event.sentiment}\n"
+            f"- 영향 수준: {current_event.impact_level}\n"
+            f"- 지속 기간: {current_event.duration}\n\n"
+        )
+
+        prompt += (
+            "이 사건에 대해, 아래 언론사의 성향과 신뢰도를 반영한 뉴스 기사를 생성하세요:\n\n"
+            f"[언론사 정보]\n"
+            f"- 이름: {outlet.name}\n"
+            f"- 성향 (bias): {outlet.bias} (-1: 보수, 0: 중립, +1: 진보)\n"
+            f"- 신뢰도 (credibility): {outlet.credibility} (0~1)\n\n"
+            f"[출력 형식]\n"
+            f"뉴스 기사 본문만 출력하세요.\n"
+            f"과장, 왜곡, 미화 여부는 언론 성향과 신뢰도에 따라 판단해 작성하세요.\n"
+        )
+
+        return query_llm(prompt).strip()
