@@ -141,7 +141,6 @@ class Announcer:
             event.news_article.append(news_id)
         return news_list
 
-    # ⬇️ announcer.py 내부의 generate_news 메서드 전체를 아래 구현으로 교체하세요.
     def generate_news(
         self,
         current_event: Event,
@@ -195,7 +194,6 @@ class Announcer:
 
         return text
 
-    # ⬇️ announcer.py 안에 아래 헬퍼 2개를 클래스 메서드로 추가하세요.
     @staticmethod
     def _extract_news_text(raw: str) -> str:
         """
