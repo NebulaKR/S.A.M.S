@@ -1,11 +1,14 @@
 # 내부 파라미터 생성 함수 불러오기 (정부, 기업, 대중, 언론 초기값)
-from config.generator import get_internal_params
+from core.models.config.generator import get_internal_params
 
 # 코치(Coach) 클래스 - 내부 파라미터 기반으로 가중치 조정
-from coach.coach import Coach
+from core.models.coach.coach import Coach
 
 # 기대값 계산 함수 - 가중치 + 파라미터 기반으로 기대 주가 변화 계산
-from coach.expectation import calculate_expectation
+from core.models.coach.expectation import calculate_expectation
+
+# 메인 모델 - 최종 변동률/주가 계산
+from core.models.main_model import main_model
 
 # 딕셔너리를 예쁘게 출력하기 위한 유틸
 from pprint import pprint
@@ -28,3 +31,8 @@ expect = calculate_expectation(weights, params)
 
 # 결과 출력
 print("📈 기대값(가중치 적용):", expect)
+
+# 4. 메인 모델 계산 (뉴스 임팩트 예시 적용)
+events = {"news_impact": 0.08}
+result = main_model(weights, params, events, base_price=100.0)
+print("🧮 메인 모델 결과:", result)

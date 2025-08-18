@@ -1,5 +1,5 @@
 import random
-from ....data.parameter_templates import SCENARIO_TEMPLATES
+from data.parameter_templates import SCENARIO_TEMPLATES
 
 def get_internal_params(seed=None, scenario="default"):
     """
