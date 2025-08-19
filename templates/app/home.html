@@ -1,0 +1,72 @@
+{% extends 'base.html' %}
+{% block title %}SAMS 홈{% endblock %}
+{% block head_extra %}<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>{% endblock %}
+{% block body %}
+<div class="grid grid-cols-12 min-h-screen">
+  <aside class="col-span-2 bg-white border-r">
+    <div class="p-4 font-bold">SAMS</div>
+    <nav class="px-2 space-y-1">
+      <a class="block px-3 py-2 bg-slate-100 rounded-lg">홈</a>
+      <a class="block px-3 py-2 hover:bg-slate-50 rounded-lg">거래</a>
+      <a class="block px-3 py-2 hover:bg-slate-50 rounded-lg">뉴스</a>
+      <a class="block px-3 py-2 hover:bg-slate-50 rounded-lg">백테스트</a>
+      <a class="block px-3 py-2 hover:bg-slate-50 rounded-lg">설정</a>
+    </nav>
+  </aside>
+
+  <main class="col-span-10 bg-slate-50 p-4 space-y-6">
+    <div class="grid md:grid-cols-3 gap-4">
+      <div class="bg-white p-4 rounded-2xl shadow-soft"><div class="text-sm">총자산</div><div class="text-2xl font-bold">{{ kpi.total_asset }} <span class="text-sm text-emerald-600">({{ kpi.daily_change }})</span></div></div>
+      <div class="bg-white p-4 rounded-2xl shadow-soft"><div class="text-sm">현금비중</div><div class="text-2xl font-bold">{{ kpi.cash_ratio }}</div></div>
+      <div class="bg-white p-4 rounded-2xl shadow-soft"><div class="text-sm">위험지표(β)</div><div class="text-2xl font-bold">{{ kpi.beta }}</div></div>
+    </div>
+
+    <div class="grid lg:grid-cols-3 gap-4">
+      <div class="lg:col-span-2 bg-white p-4 rounded-2xl shadow-soft">
+        <div class="flex justify-between"><span class="font-semibold">가격/포지션 차트</span></div>
+        <canvas id="priceChart" class="mt-3 h-64 w-full"></canvas>
+      </div>
+      <div class="bg-white p-4 rounded-2xl shadow-soft">
+        <div class="font-semibold">주문</div>
+        <form class="mt-3 space-y-3" onsubmit="event.preventDefault();alert('모의 주문이 접수되었습니다.')">
+          <div><label class="text-sm">수량</label><input type="number" value="10" class="mt-1 w-full border rounded-xl px-3 py-2"></div>
+          <div><label class="text-sm">주문 유형</label><select class="mt-1 w-full border rounded-xl px-3 py-2"><option>시장가</option><option>지정가</option></select></div>
+          <button class="w-full py-2 bg-emerald-600 text-white rounded-xl">매수</button>
+          <button class="w-full py-2 bg-rose-600 text-white rounded-xl">매도</button>
+        </form>
+      </div>
+    </div>
+
+    <div class="grid lg:grid-cols-3 gap-4">
+      <div class="lg:col-span-2 bg-white p-4 rounded-2xl shadow-soft">
+        <div class="font-semibold">관심종목</div>
+        <table class="w-full text-sm mt-3">
+          <thead><tr class="text-slate-500"><th>종목</th><th>가격</th><th>등락</th><th>포지션</th><th></th></tr></thead>
+          <tbody>
+            {% for item in watchlist %}
+            <tr class="border-t"><td>{{ item.name }}</td><td>{{ item.price }}</td><td class="{% if item.up %}text-emerald-600{% else %}text-rose-600{% endif %}">{{ item.change }}</td><td>{{ item.pos }}</td><td><button class="px-2 py-1 border rounded-lg">거래</button></td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <div class="bg-white p-4 rounded-2xl shadow-soft">
+        <div class="font-semibold">뉴스 피드</div>
+        <ul class="mt-3 space-y-3 text-sm">
+          <li class="border-b pb-3"><div class="font-medium">AI 칩 수요 폭증… 관련주 강세</div><div class="text-slate-500">파이낸셜잉글리시 · 12분 전</div></li>
+          <li class="border-b pb-3"><div class="font-medium">금리 인하 기대감, 반도체 투자 확대</div><div class="text-slate-500">TechPulse · 45분 전</div></li>
+          <li><div class="font-medium">정부, 첨단 제조업 세제 지원 검토</div><div class="text-slate-500">PolicyWatch · 1시간 전</div></li>
+        </ul>
+      </div>
+    </div>
+  </main>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded',()=>{
+  const ctx=document.getElementById('priceChart');
+  new Chart(ctx,{type:'line',data:{labels:[...Array(30).keys()],datasets:[{data:[100,102,105,104,107],borderColor:'#3b82f6'}]},options:{responsive:true,plugins:{legend:{display:false}}}});
+});
+</script>
+{% endblock %}

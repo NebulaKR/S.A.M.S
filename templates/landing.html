@@ -1,0 +1,67 @@
+{% extends 'base.html' %}
+{% block title %}SAMS — 현실 같은 모의 투자{% endblock %}
+{% block body %}
+<header class="fixed top-0 inset-x-0 z-40">
+  <div class="max-w-7xl mx-auto px-4">
+    <div class="mt-4 flex items-center justify-between px-4 py-3 shadow-soft glass rounded-2xl">
+      <a href="/" class="flex items-center gap-2">
+        <div class="w-6 h-6 bg-brand-600 rounded-md"></div>
+        <span class="font-extrabold">SAMS</span>
+      </a>
+      <nav class="hidden md:flex gap-6 text-sm text-slate-700">
+        <a class="hover:text-brand-600">제품</a>
+        <a class="hover:text-brand-600">가격</a>
+        <a class="hover:text-brand-600">문서</a>
+      </nav>
+      <div class="flex gap-3">
+        <a href="{% url 'login' %}" class="px-4 py-2 border rounded-xl">로그인</a>
+        <a href="{% url 'login' %}" class="px-4 py-2 bg-brand-600 text-white rounded-xl">시작하기</a>
+      </div>
+    </div>
+  </div>
+</header>
+
+<main class="pt-28">
+  <section class="max-w-7xl mx-auto px-4">
+    <div class="grid lg:grid-cols-2 gap-10 items-center">
+      <div>
+        <h1 class="text-5xl font-extrabold leading-tight">현실 같은 <span class="text-brand-600">모의 투자</span>, 빠른 <span class="text-slate-900">인사이트</span></h1>
+        <p class="mt-4 text-lg text-slate-600">SAMS는 뉴스/정책/대중심리로 움직이는 시장을 시뮬레이션합니다.</p>
+        <div class="mt-6 flex gap-3">
+          <a href="{% url 'login' %}" class="px-5 py-3 bg-brand-600 text-white rounded-xl">무료로 시작</a>
+          <a href="#" class="px-5 py-3 border rounded-xl">라이브 데모</a>
+        </div>
+        <div class="mt-8 grid grid-cols-2 sm:grid-cols-4 gap-4 text-center">
+          <div class="p-4 bg-white shadow-soft rounded-2xl"><div class="text-2xl font-extrabold">1,000+</div><div class="text-xs text-slate-500">가상 종목</div></div>
+          <div class="p-4 bg-white shadow-soft rounded-2xl"><div class="text-2xl font-extrabold">Realtime</div><div class="text-xs text-slate-500">뉴스 반영</div></div>
+          <div class="p-4 bg-white shadow-soft rounded-2xl"><div class="text-2xl font-extrabold">AI</div><div class="text-xs text-slate-500">이벤트 생성</div></div>
+          <div class="p-4 bg-white shadow-soft rounded-2xl"><div class="text-2xl font-extrabold">백테스트</div><div class="text-xs text-slate-500">전략 검증</div></div>
+        </div>
+      </div>
+      <div class="p-4 bg-gradient-to-br from-brand-600/10 to-slate-900/5 rounded-3xl">
+        <div class="p-4 bg-white shadow-soft rounded-2xl">
+          <div class="flex justify-between border-b pb-3"><span class="font-semibold">포트폴리오(샘플)</span><span class="text-xs text-slate-500">실시간 업데이트</span></div>
+          <div class="grid grid-cols-3 gap-3 mt-3">
+            <div class="bg-slate-50 p-3 rounded-xl"><div class="text-xs">총자산</div><div class="font-bold">₩ 12,540,000</div></div>
+            <div class="bg-slate-50 p-3 rounded-xl"><div class="text-xs">일손익</div><div class="font-bold text-emerald-600">+1.8%</div></div>
+            <div class="bg-slate-50 p-3 rounded-xl"><div class="text-xs">위험</div><div class="font-bold">중간</div></div>
+          </div>
+          <div class="mt-4 border p-3 rounded-xl"><div class="text-xs text-slate-500">샘플 차트</div><div class="h-28 bg-gradient-to-r from-brand-100 to-brand-50 rounded-lg"></div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="mt-16 grid md:grid-cols-3 gap-6">
+      <div class="p-6 bg-white shadow-soft rounded-2xl"><div class="font-semibold">뉴스/정책 엔진</div><p class="text-sm text-slate-600 mt-2">아나운서-코치-메인모델 파이프라인</p></div>
+      <div class="p-6 bg-white shadow-soft rounded-2xl"><div class="font-semibold">시나리오 플레이</div><p class="text-sm text-slate-600 mt-2">불확실성 상황 훈련</p></div>
+      <div class="p-6 bg-white shadow-soft rounded-2xl"><div class="font-semibold">리스크 관리</div><p class="text-sm text-slate-600 mt-2">핵심 지표 제공</p></div>
+    </div>
+
+    <div class="mt-14 text-center">
+      <h2 class="text-2xl font-bold">지금 바로 전략을 테스트해보세요</h2>
+      <p class="text-slate-600 mt-2">로그인 후 데모 포트폴리오가 생성됩니다.</p>
+      <a href="{% url 'login' %}" class="inline-block mt-5 px-6 py-3 bg-slate-900 text-white rounded-xl">로그인하기</a>
+    </div>
+  </section>
+</main>
+{% endblock %}
