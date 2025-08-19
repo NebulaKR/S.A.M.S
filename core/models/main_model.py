@@ -35,23 +35,16 @@ def main_model(
 	events: Dict,
 	base_price: float = 100.0,
 	external: Optional[Dict] = None,
+	ml_model_path: Optional[str] = None,
+	ml_blend_weight: float = 0.0,
 ) -> Dict[str, float]:
 	"""
 	코치가 전달한 가중치와 내부 파라미터, 이벤트 정보를 종합하여
 	최종 변동률(delta)과 가격(price)을 계산한다.
 
-	MVP 계산식(개선):
-		news_effect   = w_news    * events["news_impact"] * events.get("media_credibility", 1.0)
-		public_effect = w_public  * scale01(public.risk_appetite)
-		comp_effect   = w_company * scale01(company.trait or company.orientation)
-		gov_effect    = w_gov     * scale01(government.policy_direction)
-		delta = news_effect + public_effect + comp_effect + gov_effect
-		new_price = base_price * (1 + delta)
-
-	규칙:
-	- 모든 입력 수치는 [0,1]로 클리핑(부호가 있는 값은 0~1로 변환 후 클리핑)
-	- 가중치는 합=1 정규화(방어적 재정규화)
-	- delta는 소수점 4자리, price는 소수점 2자리 반올림
+	옵션:
+	- ml_model_path: 학습된 모델 경로(json). 주어지면 params/events로 예측한 delta와 블렌딩
+	- ml_blend_weight: 0~1, 1이면 ML만 사용, 0이면 규칙기반만 사용
 	"""
 
 	# 방어적 정규화 (코치에서 이미 정규화해도, 안전망으로 한 번 더 적용)
@@ -87,16 +80,26 @@ def main_model(
 	news_impact = _clamp01(float(events.get("news_impact", 0.0)))
 	media_cred = _clamp01(float(events.get("media_credibility", 1.0)))
 
-	# 효과 계산
+	# 효과 계산 (규칙기반)
 	news_effect = w["w_news"] * news_impact * media_cred
 	public_effect = w["w_public"] * risk_appetite
 	comp_effect = w["w_company"] * comp_trait
 	gov_effect = w["w_gov"] * policy_direction
+	rule_delta = news_effect + public_effect + comp_effect + gov_effect
 
-	delta = news_effect + public_effect + comp_effect + gov_effect
+	# ML 예측과 블렌딩(옵션)
+	final_delta = rule_delta
+	if ml_model_path and ml_blend_weight > 0.0:
+		try:
+			from utils.inference import predict_delta_with_model, blend_deltas
+			ml_delta = float(predict_delta_with_model(ml_model_path, params, events))
+			final_delta = blend_deltas(rule_delta, ml_delta, weight_ml=ml_blend_weight)
+		except Exception:
+			# 실패 시 규칙기반 유지
+			final_delta = rule_delta
 
 	# 반올림 규칙 적용
-	delta = round(delta, 4)
-	new_price = round(base_price * (1.0 + delta), 2)
+	final_delta = round(final_delta, 4)
+	new_price = round(base_price * (1.0 + final_delta), 2)
 
-	return {"delta": delta, "price": new_price} 
+	return {"delta": final_delta, "price": new_price} 

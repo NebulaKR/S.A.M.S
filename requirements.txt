@@ -4,3 +4,6 @@ django-cors-headers==4.4.0
 firebase-admin==6.5.0
 gunicorn==22.0.0
 requests==2.32.3
+pandas==2.2.2
+numpy==1.26.4
+yfinance==0.2.43
