@@ -1,5 +1,6 @@
 import random
 from data.parameter_templates import SCENARIO_TEMPLATES
+from core.entities import Public, Company, Government, News as NewsEntity
 
 def get_internal_params(seed=None, scenario="default"):
     """
@@ -40,3 +41,58 @@ def get_internal_params(seed=None, scenario="default"):
                 result[section][key] = perturb(val)
     
     return result
+
+
+def build_entities_from_params(params: dict) -> dict:
+    """
+    dict 형태의 내부 파라미터를 엔티티 인스턴스로 변환해 반환.
+    반환 딕셔너리 키: {"public", "company", "government", "news"}
+    """
+    gov = params.get("government", {})
+    comp = params.get("company", {})
+    pub = params.get("public", {})
+    med = params.get("media", {})
+
+    # 값 매핑/보정
+    policy_direction_signed = float(gov.get("policy_direction", 0.0)) * 2.0 - 1.0
+    interest_rate = float(gov.get("interest_rate", 0.02))
+    tax_policy_signed = float(gov.get("tax_policy", 0.0))  # 이미 -1~+1 사용
+    industry_support = dict(gov.get("industry_support", {}))
+
+    government = Government(
+        policy_direction=policy_direction_signed,
+        interest_rate=interest_rate,
+        tax_policy=tax_policy_signed,
+        industry_support=industry_support,
+    )
+
+    orientation_signed = float(comp.get("trait", 0.0)) * 2.0 - 1.0
+    rnd_focus = float(comp.get("rnd_ratio", 0.3))
+    volatility = float(comp.get("industry_match", 0.5))  # 정합성을 변동성 근사로 사용
+    company = Company(
+        industry="Generic",
+        orientation=orientation_signed,
+        size="중견",
+        rnd_focus=rnd_focus,
+        volatility=volatility,
+    )
+
+    risk_appetite_signed = float(pub.get("risk_appetite", 0.0))
+    news_sensitivity = float(pub.get("news_sensitivity", 0.5))
+    public = Public(
+        consumer_index=50.0,
+        risk_appetite=risk_appetite_signed,
+        news_sensitivity=news_sensitivity,
+    )
+
+    bias = float(med.get("bias", 0.0))
+    credibility = float(med.get("trust", 0.7))
+    news = NewsEntity(
+        bias=bias,
+        credibility=credibility,
+        impact_level=3,
+        category="General",
+        sentiment=0.0,
+    )
+
+    return {"public": public, "company": company, "government": government, "news": news}
