@@ -220,11 +220,11 @@
   <aside class="col-span-2 bg-white border-r">
     <div class="p-4 font-bold">SAMS</div>
     <nav class="px-2 space-y-1">
-      <a class="block px-3 py-2 bg-slate-100 rounded-lg">시뮬레이션</a>
-      <a class="block px-3 py-2 hover:bg-slate-50 rounded-lg">포트폴리오</a>
-      <a class="block px-3 py-2 hover:bg-slate-50 rounded-lg">거래</a>
+      <a href="{% url 'home' %}" class="block px-3 py-2 hover:bg-slate-50 rounded-lg">홈</a>
+      <a href="{% url 'portfolio' %}" class="block px-3 py-2 bg-slate-100 rounded-lg">포트폴리오</a>
+      <a href="{% url 'trading' %}" class="block px-3 py-2 hover:bg-slate-50 rounded-lg">거래</a>
       <a class="block px-3 py-2 hover:bg-slate-50 rounded-lg">뉴스</a>
-      <a class="block px-3 py-2 hover:bg-slate-50 rounded-lg">백테스트</a>
+      <a class="block px-3 py-2 hover:bg-slate-50 rounded-lg">설정</a>
     </nav>
   </aside>
 
