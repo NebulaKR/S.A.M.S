@@ -1,0 +1,523 @@
+{% extends 'base.html' %}
+{% block title %}SAMS 포트폴리오{% endblock %}
+{% block head_extra %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+.portfolio-summary {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border-radius: 1rem;
+    padding: 2rem;
+    color: white;
+    margin-bottom: 1.5rem;
+}
+
+.metric-card {
+    background: white;
+    padding: 1.5rem;
+    border-radius: 1rem;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    text-align: center;
+}
+
+.metric-value {
+    font-size: 2rem;
+    font-weight: bold;
+    margin-bottom: 0.5rem;
+}
+
+.metric-label {
+    color: #6b7280;
+    font-size: 0.875rem;
+}
+
+.positive { color: #10b981; }
+.negative { color: #ef4444; }
+.neutral { color: #6b7280; }
+
+.position-table {
+    background: white;
+    border-radius: 1rem;
+    overflow: hidden;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+}
+
+.position-table th {
+    background: #f8fafc;
+    padding: 1rem;
+    text-align: left;
+    font-weight: 600;
+    color: #374151;
+}
+
+.position-table td {
+    padding: 1rem;
+    border-top: 1px solid #e5e7eb;
+}
+
+.position-table tr:hover {
+    background: #f9fafb;
+}
+
+.watchlist-item {
+    background: white;
+    padding: 1rem;
+    border-radius: 0.5rem;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    margin-bottom: 0.5rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.stock-info {
+    display: flex;
+    flex-direction: column;
+}
+
+.stock-name {
+    font-weight: 600;
+    color: #111827;
+}
+
+.stock-ticker {
+    font-size: 0.875rem;
+    color: #6b7280;
+}
+
+.stock-price {
+    text-align: right;
+}
+
+.price-value {
+    font-weight: 600;
+    font-size: 1.125rem;
+}
+
+.price-change {
+    font-size: 0.875rem;
+}
+
+.chart-container {
+    background: white;
+    padding: 1.5rem;
+    border-radius: 1rem;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+}
+
+.quick-actions {
+    display: flex;
+    gap: 1rem;
+    margin-top: 1rem;
+}
+
+.action-btn {
+    padding: 0.75rem 1.5rem;
+    border-radius: 0.5rem;
+    font-weight: 600;
+    text-decoration: none;
+    text-align: center;
+    transition: all 0.2s;
+}
+
+.btn-primary {
+    background: #3b82f6;
+    color: white;
+}
+
+.btn-primary:hover {
+    background: #2563eb;
+}
+
+.btn-secondary {
+    background: #6b7280;
+    color: white;
+}
+
+.btn-secondary:hover {
+    background: #4b5563;
+}
+</style>
+{% endblock %}
+
+{% block body %}
+<div class="grid grid-cols-12 min-h-screen">
+  <aside class="col-span-2 bg-white border-r">
+    <div class="p-4 font-bold">SAMS</div>
+    <nav class="px-2 space-y-1">
+      <a href="{% url 'home' %}" class="block px-3 py-2 hover:bg-slate-50 rounded-lg">홈</a>
+      <a href="{% url 'simulation' %}" class="block px-3 py-2 hover:bg-slate-50 rounded-lg">시뮬레이션</a>
+      <a href="{% url 'portfolio' %}" class="block px-3 py-2 bg-slate-100 rounded-lg">포트폴리오</a>
+      <a href="{% url 'trading' %}" class="block px-3 py-2 hover:bg-slate-50 rounded-lg">거래</a>
+      <a class="block px-3 py-2 hover:bg-slate-50 rounded-lg">뉴스</a>
+      <a class="block px-3 py-2 hover:bg-slate-50 rounded-lg">백테스트</a>
+    </nav>
+  </aside>
+
+  <main class="col-span-10 bg-slate-50 p-4 space-y-6">
+    {% csrf_token %}
+    
+    <!-- 포트폴리오 요약 -->
+    <div class="portfolio-summary">
+      <div class="flex items-center justify-between">
+        <div>
+          <h1 class="text-3xl font-bold">{{ portfolio.portfolio.name }}</h1>
+          <p class="text-blue-100 mt-2">AI 시장 시뮬레이션에서의 투자 성과를 확인하세요</p>
+        </div>
+        <div class="text-right">
+          <div class="text-2xl font-bold">₩{{ portfolio.total_value|floatformat:0 }}</div>
+          <div class="text-blue-100">총 자산 가치</div>
+        </div>
+      </div>
+      
+      <div class="quick-actions">
+        <a href="{% url 'trading' %}" class="action-btn btn-primary">거래하기</a>
+        <a href="{% url 'simulation' %}" class="action-btn btn-secondary">시뮬레이션</a>
+      </div>
+    </div>
+
+    <!-- 주요 지표 -->
+    <div class="grid md:grid-cols-4 gap-4">
+      <div class="metric-card">
+        <div class="metric-value {% if portfolio.total_return >= 0 %}positive{% else %}negative{% endif %}">
+          {{ portfolio.total_return|floatformat:2 }}%
+        </div>
+        <div class="metric-label">총 수익률</div>
+      </div>
+      
+      <div class="metric-card">
+        <div class="metric-value">₩{{ portfolio.cash_balance|floatformat:0 }}</div>
+        <div class="metric-label">현금 잔고</div>
+      </div>
+      
+      <div class="metric-card">
+        <div class="metric-value">{{ portfolio.cash_ratio|floatformat:1 }}%</div>
+        <div class="metric-label">현금 비중</div>
+      </div>
+      
+      <div class="metric-card">
+        <div class="metric-value {% if portfolio.unrealized_pnl >= 0 %}positive{% else %}negative{% endif %}">
+          ₩{{ portfolio.unrealized_pnl|floatformat:0 }}
+        </div>
+        <div class="metric-label">미실현 손익</div>
+      </div>
+    </div>
+
+    <!-- 포트폴리오 구성 -->
+    <div class="grid lg:grid-cols-3 gap-4">
+      <div class="lg:col-span-2">
+        <div class="chart-container">
+          <h3 class="text-lg font-semibold mb-4">자산 배분</h3>
+          <canvas id="portfolioChart" class="h-64 w-full"></canvas>
+        </div>
+      </div>
+      
+      <div class="space-y-4">
+        <div class="bg-white p-4 rounded-2xl shadow-soft">
+          <h3 class="font-semibold mb-3">관심종목</h3>
+          <div class="space-y-2">
+            {% for stock in watchlist %}
+            <div class="watchlist-item">
+              <div class="stock-info">
+                <div class="stock-name">{{ stock.name }}</div>
+                <div class="stock-ticker">{{ stock.ticker }}</div>
+              </div>
+              <div class="stock-price">
+                <div class="price-value">₩{{ stock.current_price|floatformat:0 }}</div>
+                <div class="price-change {% if stock.price_change >= 0 %}positive{% else %}negative{% endif %}">
+                  {{ stock.price_change|floatformat:2 }}%
+                </div>
+              </div>
+            </div>
+            {% empty %}
+            <div class="text-center text-slate-500 py-4">
+              관심종목이 없습니다
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 보유 종목 -->
+    <div class="bg-white rounded-2xl shadow-soft overflow-hidden">
+      <div class="p-4 border-b">
+        <h3 class="text-lg font-semibold">보유 종목</h3>
+      </div>
+      
+      {% if portfolio.positions %}
+      <div class="position-table">
+        <table class="w-full">
+          <thead>
+            <tr>
+              <th>종목</th>
+              <th>보유수량</th>
+              <th>평균단가</th>
+              <th>현재가</th>
+              <th>평가금액</th>
+              <th>수익률</th>
+              <th>비중</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for position in portfolio.positions %}
+            <tr>
+              <td>
+                <div>
+                  <div class="font-medium">{{ position.name }}</div>
+                  <div class="text-sm text-slate-500">{{ position.ticker }}</div>
+                </div>
+              </td>
+              <td>{{ position.quantity|floatformat:0 }}주</td>
+              <td>₩{{ position.average_price|floatformat:0 }}</td>
+              <td>₩{{ position.current_price|floatformat:0 }}</td>
+              <td>₩{{ position.current_value|floatformat:0 }}</td>
+              <td class="{% if position.unrealized_pnl_percent >= 0 %}positive{% else %}negative{% endif %}">
+                {{ position.unrealized_pnl_percent|floatformat:2 }}%
+              </td>
+              <td>{{ position.weight|floatformat:1 }}%</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div class="p-8 text-center text-slate-500">
+        <div class="text-lg font-medium mb-2">보유 종목이 없습니다</div>
+        <p class="text-sm">거래 화면에서 주식을 매수해보세요!</p>
+        <a href="{% url 'trading' %}" class="inline-block mt-4 px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+          거래하기
+        </a>
+      </div>
+      {% endif %}
+    </div>
+
+    <!-- 전체 주식 시장 -->
+    <div class="bg-white rounded-2xl shadow-soft overflow-hidden">
+      <div class="p-4 border-b">
+        <h3 class="text-lg font-semibold">전체 주식 시장 ({{ all_stocks|length }}개 종목)</h3>
+      </div>
+      
+      <div class="p-4">
+        <!-- 섹터별 필터 -->
+        <div class="flex flex-wrap gap-2 mb-4">
+          <button class="sector-filter px-3 py-1 rounded-lg bg-blue-100 text-blue-800 text-sm" data-sector="all">전체</button>
+          <button class="sector-filter px-3 py-1 rounded-lg bg-gray-100 text-gray-800 text-sm" data-sector="반도체">반도체</button>
+          <button class="sector-filter px-3 py-1 rounded-lg bg-gray-100 text-gray-800 text-sm" data-sector="자동차">자동차</button>
+          <button class="sector-filter px-3 py-1 rounded-lg bg-gray-100 text-gray-800 text-sm" data-sector="화학">화학</button>
+          <button class="sector-filter px-3 py-1 rounded-lg bg-gray-100 text-gray-800 text-sm" data-sector="금융">금융</button>
+          <button class="sector-filter px-3 py-1 rounded-lg bg-gray-100 text-gray-800 text-sm" data-sector="건설">건설</button>
+          <button class="sector-filter px-3 py-1 rounded-lg bg-gray-100 text-gray-800 text-sm" data-sector="통신">통신</button>
+          <button class="sector-filter px-3 py-1 rounded-lg bg-gray-100 text-gray-800 text-sm" data-sector="바이오">바이오</button>
+          <button class="sector-filter px-3 py-1 rounded-lg bg-gray-100 text-gray-800 text-sm" data-sector="인터넷">인터넷</button>
+        </div>
+        
+        <!-- 주식 그리드 -->
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4" id="stockGrid">
+          {% for stock in all_stocks %}
+          <div class="stock-card border rounded-lg p-4 hover:shadow-md transition-shadow" data-sector="{{ stock.sector }}">
+            <div class="flex justify-between items-start mb-2">
+              <div>
+                <div class="font-semibold">{{ stock.name }}</div>
+                <div class="text-sm text-slate-500">{{ stock.ticker }}</div>
+                <div class="text-xs text-slate-400">{{ stock.sector }}</div>
+              </div>
+              <div class="text-right">
+                <div class="font-bold">₩{{ stock.current_price|floatformat:0 }}</div>
+                <div class="text-sm {% if stock.price_change >= 0 %}text-green-600{% else %}text-red-600{% endif %}">
+                  {{ stock.price_change|floatformat:2 }}%
+                </div>
+              </div>
+            </div>
+            <div class="flex gap-2 mt-3">
+              <button class="watchlist-btn px-3 py-1 bg-blue-100 text-blue-800 rounded text-sm hover:bg-blue-200 transition-colors"
+                      data-ticker="{{ stock.ticker }}" data-action="add">
+                관심종목 추가
+              </button>
+              <a href="{% url 'trading' %}" class="px-3 py-1 bg-green-100 text-green-800 rounded text-sm hover:bg-green-200 transition-colors">
+                거래
+              </a>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+
+    <!-- 최근 거래 내역 -->
+    <div class="bg-white rounded-2xl shadow-soft overflow-hidden">
+      <div class="p-4 border-b">
+        <h3 class="text-lg font-semibold">최근 거래 내역</h3>
+      </div>
+      
+      {% if portfolio.recent_transactions %}
+      <div class="p-4">
+        <div class="space-y-3">
+          {% for transaction in portfolio.recent_transactions %}
+          <div class="flex justify-between items-center py-2 border-b border-slate-100 last:border-b-0">
+            <div>
+              <div class="font-medium">{{ transaction.description }}</div>
+              <div class="text-sm text-slate-500">{{ transaction.created_at|date:"Y-m-d H:i" }}</div>
+            </div>
+            <div class="text-right">
+              <div class="font-medium">₩{{ transaction.amount|floatformat:0 }}</div>
+              <div class="text-sm text-slate-500">잔고: ₩{{ transaction.balance_after|floatformat:0 }}</div>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+      {% else %}
+      <div class="p-8 text-center text-slate-500">
+        <div class="text-lg font-medium mb-2">거래 내역이 없습니다</div>
+        <p class="text-sm">첫 거래를 시작해보세요!</p>
+      </div>
+      {% endif %}
+    </div>
+  </main>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// 포트폴리오 차트
+const ctx = document.getElementById('portfolioChart');
+const portfolioChart = new Chart(ctx, {
+    type: 'doughnut',
+    data: {
+        labels: ['현금', '주식'],
+        datasets: [{
+            data: [
+                {{ portfolio.cash_balance }},
+                {{ portfolio.stock_value }}
+            ],
+            backgroundColor: [
+                '#3b82f6',
+                '#10b981'
+            ],
+            borderWidth: 0
+        }]
+    },
+    options: {
+        responsive: true,
+        plugins: {
+            legend: {
+                position: 'bottom'
+            }
+        }
+    }
+});
+
+// 실시간 포트폴리오 업데이트 (5초마다)
+setInterval(async () => {
+    try {
+        const response = await fetch('{% url "api_portfolio_data" %}');
+        const data = await response.json();
+        
+        if (data.success) {
+            // 주요 지표 업데이트
+            document.querySelector('.portfolio-summary .text-2xl').textContent = 
+                '₩' + data.data.total_value.toLocaleString();
+            
+            // 차트 업데이트
+            portfolioChart.data.datasets[0].data = [
+                data.data.cash_balance,
+                data.data.stock_value
+            ];
+            portfolioChart.update();
+        }
+    } catch (error) {
+        console.log('포트폴리오 업데이트 실패:', error);
+    }
+}, 5000);
+
+// 섹터별 필터링
+document.querySelectorAll('.sector-filter').forEach(btn => {
+    btn.addEventListener('click', () => {
+        const sector = btn.dataset.sector;
+        
+        // 버튼 스타일 업데이트
+        document.querySelectorAll('.sector-filter').forEach(b => {
+            b.className = 'sector-filter px-3 py-1 rounded-lg bg-gray-100 text-gray-800 text-sm';
+        });
+        btn.className = 'sector-filter px-3 py-1 rounded-lg bg-blue-100 text-blue-800 text-sm';
+        
+        // 주식 카드 필터링
+        document.querySelectorAll('.stock-card').forEach(card => {
+            if (sector === 'all' || card.dataset.sector === sector) {
+                card.style.display = 'block';
+            } else {
+                card.style.display = 'none';
+            }
+        });
+    });
+});
+
+// 관심종목 추가/제거
+document.addEventListener('click', async (e) => {
+    if (e.target.classList.contains('watchlist-btn')) {
+        const ticker = e.target.dataset.ticker;
+        const action = e.target.dataset.action;
+        
+        try {
+            let url, data;
+            
+            if (action === 'add') {
+                url = '{% url "api_add_watchlist" %}';
+                data = { ticker: ticker };
+            } else {
+                url = '{% url "api_remove_watchlist" %}';
+                data = { ticker: ticker };
+            }
+            
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]')?.value || ''
+                },
+                body: JSON.stringify(data)
+            });
+            
+            const result = await response.json();
+            
+            if (result.success) {
+                // 버튼 상태 업데이트
+                if (action === 'add') {
+                    e.target.textContent = '관심종목 제거';
+                    e.target.dataset.action = 'remove';
+                    e.target.className = 'watchlist-btn px-3 py-1 bg-red-100 text-red-800 rounded text-sm hover:bg-red-200 transition-colors';
+                } else {
+                    e.target.textContent = '관심종목 추가';
+                    e.target.dataset.action = 'add';
+                    e.target.className = 'watchlist-btn px-3 py-1 bg-blue-100 text-blue-800 rounded text-sm hover:bg-blue-200 transition-colors';
+                }
+                
+                // 알림 표시
+                showNotification(result.message, 'success');
+            } else {
+                showNotification(result.message, 'error');
+            }
+        } catch (error) {
+            showNotification('관심종목 관리 중 오류가 발생했습니다', 'error');
+        }
+    }
+});
+
+// 알림 표시 함수
+function showNotification(message, type = 'info') {
+    const notification = document.createElement('div');
+    notification.className = `fixed top-4 right-4 p-4 rounded-lg shadow-lg z-50 ${
+        type === 'success' ? 'bg-green-500 text-white' :
+        type === 'error' ? 'bg-red-500 text-white' :
+        'bg-blue-500 text-white'
+    }`;
+    notification.textContent = message;
+    
+    document.body.appendChild(notification);
+    
+    setTimeout(() => {
+        notification.remove();
+    }, 3000);
+}
+</script>
+{% endblock %} 

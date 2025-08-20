@@ -24,6 +24,16 @@ urlpatterns = [
 
     path('', sams_views.landing, name='landing'),
     path('home/', sams_views.home, name='home'),
+    path('simulation/', sams_views.simulation_dashboard, name='simulation'),
+    path('portfolio/', sams_views.portfolio_dashboard, name='portfolio'),
+    path('trading/', sams_views.trading_view, name='trading'),
+
+    # API endpoints
+    path('api/portfolio/buy/', sams_views.buy_stock, name='api_buy_stock'),
+    path('api/portfolio/sell/', sams_views.sell_stock, name='api_sell_stock'),
+    path('api/portfolio/watchlist/add/', sams_views.add_to_watchlist, name='api_add_watchlist'),
+    path('api/portfolio/watchlist/remove/', sams_views.remove_from_watchlist, name='api_remove_watchlist'),
+    path('api/portfolio/data/', sams_views.get_portfolio_data, name='api_portfolio_data'),
 
     path('login/', LoginView.as_view(template_name='accounts/login.html'), name='login'),
     path('logout/', LogoutView.as_view(), name='logout'),

@@ -1,0 +1,1060 @@
+{% extends 'base.html' %}
+{% block title %}SAMS 시뮬레이션 대시보드{% endblock %}
+{% block head_extra %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+.simulation-controls {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border-radius: 1rem;
+    padding: 1.5rem;
+    color: white;
+    margin-bottom: 1.5rem;
+}
+
+.speed-controls {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 1rem;
+}
+
+.speed-btn {
+    padding: 0.5rem 1rem;
+    border: 2px solid rgba(255,255,255,0.3);
+    border-radius: 0.5rem;
+    background: rgba(255,255,255,0.1);
+    color: white;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.speed-btn:hover, .speed-btn.active {
+    background: rgba(255,255,255,0.2);
+    border-color: rgba(255,255,255,0.5);
+}
+
+.event-feed {
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+.event-item {
+    border-left: 4px solid #3b82f6;
+    padding: 1rem;
+    margin-bottom: 1rem;
+    background: white;
+    border-radius: 0.5rem;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.event-positive { border-left-color: #10b981; }
+.event-negative { border-left-color: #ef4444; }
+.event-neutral { border-left-color: #6b7280; }
+
+/* 섹터별 필터 버튼 */
+.sector-filter-btn {
+    transition: all 0.2s;
+    border: 1px solid transparent;
+}
+
+.sector-filter-btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.sector-filter-btn.active {
+    border-color: #3b82f6;
+    box-shadow: 0 2px 8px rgba(59, 130, 246, 0.3);
+}
+
+/* 섹터 그룹 */
+.sector-group {
+    border: 1px solid #e5e7eb;
+    border-radius: 0.75rem;
+    padding: 1.5rem;
+    background: #fafafa;
+    transition: all 0.2s;
+}
+
+.sector-group:hover {
+    border-color: #d1d5db;
+    background: #f9fafb;
+}
+
+.sector-group h4 {
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+/* 주식 카드 */
+.stock-card {
+    background: white;
+    padding: 1rem;
+    border-radius: 0.5rem;
+    border: 1px solid #e5e7eb;
+    transition: all 0.2s;
+    cursor: pointer;
+}
+
+.stock-card:hover {
+    border-color: #3b82f6;
+    box-shadow: 0 2px 8px rgba(59, 130, 246, 0.1);
+    transform: translateY(-1px);
+}
+
+.stock-card.up {
+    border-left: 4px solid #10b981;
+    background: linear-gradient(135deg, #f0fdf4 0%, #ffffff 100%);
+}
+
+.stock-card.down {
+    border-left: 4px solid #ef4444;
+    background: linear-gradient(135deg, #fef2f2 0%, #ffffff 100%);
+}
+
+.stock-card.neutral {
+    border-left: 4px solid #6b7280;
+}
+
+/* 섹터 접기/펼치기 */
+.sector-content {
+    transition: all 0.3s ease;
+}
+
+.sector-content.hidden {
+    max-height: 0;
+    overflow: hidden;
+    opacity: 0;
+}
+
+.sector-content:not(.hidden) {
+    max-height: 500px;
+    opacity: 1;
+}
+
+/* 섹터 헤더 클릭 가능 표시 */
+.sector-group .cursor-pointer {
+    transition: all 0.2s;
+}
+
+.sector-group .cursor-pointer:hover {
+    background: rgba(59, 130, 246, 0.05);
+    border-radius: 0.5rem;
+    padding: 0.5rem;
+    margin: -0.5rem;
+}
+
+/* 이벤트 피드 개선 */
+.event-feed {
+    max-height: 400px;
+    overflow-y: auto;
+    padding-right: 0.5rem;
+}
+
+.event-feed::-webkit-scrollbar {
+    width: 6px;
+}
+
+.event-feed::-webkit-scrollbar-track {
+    background: #f1f5f9;
+    border-radius: 3px;
+}
+
+.event-feed::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 3px;
+}
+
+.event-feed::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8;
+}
+
+/* 시뮬레이션 통계 카드 */
+.stat-card {
+    background: white;
+    padding: 1.5rem;
+    border-radius: 1rem;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    text-align: center;
+    border-left: 4px solid #3b82f6;
+    transition: all 0.2s;
+}
+
+.stat-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 15px rgba(0,0,0,0.1);
+}
+
+.stat-value {
+    font-size: 2rem;
+    font-weight: bold;
+    margin-bottom: 0.5rem;
+}
+
+.stat-label {
+    color: #6b7280;
+    font-size: 0.875rem;
+}
+
+/* 반응형 그리드 */
+@media (max-width: 768px) {
+    .sector-group {
+        padding: 1rem;
+    }
+    
+    .stock-card {
+        padding: 0.75rem;
+    }
+    
+    .sector-filter-btn {
+        padding: 0.5rem 1rem;
+        font-size: 0.875rem;
+    }
+}
+</style>
+{% endblock %}
+
+{% block body %}
+<div class="grid grid-cols-12 min-h-screen">
+  <aside class="col-span-2 bg-white border-r">
+    <div class="p-4 font-bold">SAMS</div>
+    <nav class="px-2 space-y-1">
+      <a class="block px-3 py-2 bg-slate-100 rounded-lg">시뮬레이션</a>
+      <a class="block px-3 py-2 hover:bg-slate-50 rounded-lg">포트폴리오</a>
+      <a class="block px-3 py-2 hover:bg-slate-50 rounded-lg">거래</a>
+      <a class="block px-3 py-2 hover:bg-slate-50 rounded-lg">뉴스</a>
+      <a class="block px-3 py-2 hover:bg-slate-50 rounded-lg">백테스트</a>
+    </nav>
+  </aside>
+
+  <main class="col-span-10 bg-slate-50 p-4 space-y-6">
+    <!-- 시뮬레이션 컨트롤 -->
+    <div class="simulation-controls">
+      <div class="flex items-center justify-between">
+        <div>
+          <h1 class="text-2xl font-bold">AI 시장 시뮬레이션</h1>
+          <p class="text-blue-100 mt-1">AI가 만드는 가상 경제 환경에서 투자 전략을 연습하세요</p>
+        </div>
+        <div class="text-right">
+          <div class="simulation-time" id="simulationTime">
+            시뮬레이션 시간: 2025-08-20 14:24
+          </div>
+        </div>
+      </div>
+      
+      <div class="flex items-center gap-4 mt-4">
+        <button id="startBtn" class="px-6 py-2 bg-green-500 hover:bg-green-600 rounded-lg font-semibold transition-colors">
+          시작
+        </button>
+        <button id="pauseBtn" class="px-6 py-2 bg-yellow-500 hover:bg-yellow-600 rounded-lg font-semibold transition-colors" disabled>
+          일시정지
+        </button>
+        <button id="stopBtn" class="px-6 py-2 bg-red-500 hover:bg-red-600 rounded-lg font-semibold transition-colors" disabled>
+          정지
+        </button>
+      </div>
+      
+      <div class="speed-controls">
+        <span class="text-sm font-medium">시뮬레이션 속도:</span>
+        <button class="speed-btn active" data-speed="1">1x</button>
+        <button class="speed-btn" data-speed="2">2x</button>
+        <button class="speed-btn" data-speed="5">5x</button>
+        <button class="speed-btn" data-speed="10">10x</button>
+      </div>
+    </div>
+
+    <!-- 주가 그리드 -->
+    <div class="bg-white rounded-2xl shadow-soft overflow-hidden">
+      <div class="p-4 border-b">
+        <h3 class="text-lg font-semibold">주가 모니터링</h3>
+        <p class="text-sm text-slate-600 mt-1">섹터별로 그룹화된 주요 종목들의 실시간 가격</p>
+      </div>
+      
+      <div class="p-4">
+        <!-- 섹터별 필터 -->
+        <div class="flex flex-wrap gap-2 mb-4">
+          <button class="sector-filter-btn px-3 py-2 rounded-lg bg-blue-100 text-blue-800 text-sm font-medium active" data-sector="all">
+            전체 보기
+          </button>
+          <button class="sector-filter-btn px-3 py-2 rounded-lg bg-gray-100 text-gray-800 text-sm font-medium" data-sector="반도체">
+            반도체 (3)
+          </button>
+          <button class="sector-filter-btn px-3 py-2 rounded-lg bg-gray-100 text-gray-800 text-sm font-medium" data-sector="자동차">
+            자동차 (2)
+          </button>
+          <button class="sector-filter-btn px-3 py-2 rounded-lg bg-gray-100 text-gray-800 text-sm font-medium" data-sector="화학">
+            화학 (3)
+          </button>
+          <button class="sector-filter-btn px-3 py-2 rounded-lg bg-gray-100 text-gray-800 text-sm font-medium" data-sector="금융">
+            금융 (5)
+          </button>
+          <button class="sector-filter-btn px-3 py-2 rounded-lg bg-gray-100 text-gray-800 text-sm font-medium" data-sector="건설">
+            건설 (3)
+          </button>
+          <button class="sector-filter-btn px-3 py-2 rounded-lg bg-gray-100 text-gray-800 text-sm font-medium" data-sector="통신">
+            통신 (2)
+          </button>
+          <button class="sector-filter-btn px-3 py-2 rounded-lg bg-gray-100 text-gray-800 text-sm font-medium" data-sector="바이오">
+            바이오 (2)
+          </button>
+          <button class="sector-filter-btn px-3 py-2 rounded-lg bg-gray-100 text-gray-800 text-sm font-medium" data-sector="인터넷">
+            인터넷 (3)
+          </button>
+        </div>
+        
+        <!-- 섹터별 주식 그룹 -->
+        <div id="stockSectors">
+          <!-- 반도체 섹터 -->
+          <div class="sector-group mb-6" data-sector="반도체">
+            <div class="flex items-center justify-between mb-3">
+              <h4 class="font-semibold text-lg text-blue-800">🔵 반도체</h4>
+              <span class="text-sm text-slate-500">3개 종목</span>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <div class="stock-card" data-ticker="005930">
+                <div class="flex justify-between items-center">
+                  <div>
+                    <div class="font-semibold">삼성전자</div>
+                    <div class="text-sm text-slate-500">005930</div>
+                  </div>
+                  <div class="text-right">
+                    <div class="font-bold text-lg">₩79,000</div>
+                    <div class="text-sm text-green-600">+0.00%</div>
+                  </div>
+                </div>
+              </div>
+              <div class="stock-card" data-ticker="000660">
+                <div class="flex justify-between items-center">
+                  <div>
+                    <div class="font-semibold">SK하이닉스</div>
+                    <div class="text-sm text-slate-500">000660</div>
+                  </div>
+                  <div class="text-right">
+                    <div class="font-bold text-lg">₩45,000</div>
+                    <div class="text-sm text-green-600">+0.00%</div>
+                  </div>
+                </div>
+              </div>
+              <div class="stock-card" data-ticker="011070">
+                <div class="flex justify-between items-center">
+                  <div>
+                    <div class="font-semibold">LG이노텍</div>
+                    <div class="text-sm text-slate-500">011070</div>
+                  </div>
+                  <div class="text-right">
+                    <div class="font-bold text-lg">₩180,000</div>
+                    <div class="text-sm text-green-600">+0.00%</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 자동차 섹터 -->
+          <div class="sector-group mb-6" data-sector="자동차">
+            <div class="flex items-center justify-between mb-3">
+              <h4 class="font-semibold text-lg text-green-800">🟢 자동차</h4>
+              <span class="text-sm text-slate-500">2개 종목</span>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div class="stock-card" data-ticker="005380">
+                <div class="flex justify-between items-center">
+                  <div>
+                    <div class="font-semibold">현대차</div>
+                    <div class="text-sm text-slate-500">005380</div>
+                  </div>
+                  <div class="text-right">
+                    <div class="font-bold text-lg">₩180,000</div>
+                    <div class="text-sm text-green-600">+0.00%</div>
+                  </div>
+                </div>
+              </div>
+              <div class="stock-card" data-ticker="005490">
+                <div class="flex justify-between items-center">
+                  <div>
+                    <div class="font-semibold">기아</div>
+                    <div class="text-sm text-slate-500">005490</div>
+                  </div>
+                  <div class="text-right">
+                    <div class="font-bold text-lg">₩85,000</div>
+                    <div class="text-sm text-green-600">+0.00%</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 화학 섹터 -->
+          <div class="sector-group mb-6" data-sector="화학">
+            <div class="flex items-center justify-between mb-3">
+              <h4 class="font-semibold text-lg text-purple-800">🟣 화학</h4>
+              <span class="text-sm text-slate-500">3개 종목</span>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <div class="stock-card" data-ticker="051910">
+                <div class="flex justify-between items-center">
+                  <div>
+                    <div class="font-semibold">LG화학</div>
+                    <div class="text-sm text-slate-500">051910</div>
+                  </div>
+                  <div class="text-right">
+                    <div class="font-bold text-lg">₩520,000</div>
+                    <div class="text-sm text-green-600">+0.00%</div>
+                  </div>
+                </div>
+              </div>
+              <div class="stock-card" data-ticker="006400">
+                <div class="flex justify-between items-center">
+                  <div>
+                    <div class="font-semibold">삼성SDI</div>
+                    <div class="text-sm text-slate-500">006400</div>
+                  </div>
+                  <div class="text-right">
+                    <div class="font-bold text-lg">₩380,000</div>
+                    <div class="text-sm text-green-600">+0.00%</div>
+                  </div>
+                </div>
+              </div>
+              <div class="stock-card" data-ticker="373220">
+                <div class="flex justify-between items-center">
+                  <div>
+                    <div class="font-semibold">LG에너지솔루션</div>
+                    <div class="text-sm text-slate-500">373220</div>
+                  </div>
+                  <div class="text-right">
+                    <div class="font-bold text-lg">₩450,000</div>
+                    <div class="text-sm text-green-600">+0.00%</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 금융 섹터 -->
+          <div class="sector-group mb-6" data-sector="금융">
+            <div class="flex items-center justify-between mb-3">
+              <h4 class="font-semibold text-lg text-yellow-800">🟡 금융</h4>
+              <span class="text-sm text-slate-500">5개 종목</span>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-5 gap-3">
+              <div class="stock-card" data-ticker="055550">
+                <div class="flex justify-between items-center">
+                  <div>
+                    <div class="font-semibold">신한지주</div>
+                    <div class="text-sm text-slate-500">055550</div>
+                  </div>
+                  <div class="text-right">
+                    <div class="font-bold text-lg">₩45,000</div>
+                    <div class="text-sm text-green-600">+0.00%</div>
+                  </div>
+                </div>
+              </div>
+              <div class="stock-card" data-ticker="086790">
+                <div class="flex justify-between items-center">
+                  <div>
+                    <div class="font-semibold">하나금융지주</div>
+                    <div class="text-sm text-slate-500">086790</div>
+                  </div>
+                  <div class="text-right">
+                    <div class="font-bold text-lg">₩42,000</div>
+                    <div class="text-sm text-green-600">+0.00%</div>
+                  </div>
+                </div>
+              </div>
+              <div class="stock-card" data-ticker="105560">
+                <div class="flex justify-between items-center">
+                  <div>
+                    <div class="font-semibold">KB금융</div>
+                    <div class="text-sm text-slate-500">105560</div>
+                  </div>
+                  <div class="text-right">
+                    <div class="font-bold text-lg">₩65,000</div>
+                    <div class="text-sm text-green-600">+0.00%</div>
+                  </div>
+                </div>
+              </div>
+              <div class="stock-card" data-ticker="138930">
+                <div class="flex justify-between items-center">
+                  <div>
+                    <div class="font-semibold">BNK금융지주</div>
+                    <div class="text-sm text-slate-500">138930</div>
+                  </div>
+                  <div class="text-right">
+                    <div class="font-bold text-lg">₩8,500</div>
+                    <div class="text-sm text-green-600">+0.00%</div>
+                  </div>
+                </div>
+              </div>
+              <div class="stock-card" data-ticker="323410">
+                <div class="flex justify-between items-center">
+                  <div>
+                    <div class="font-semibold">카카오뱅크</div>
+                    <div class="text-sm text-slate-500">323410</div>
+                  </div>
+                  <div class="text-right">
+                    <div class="font-bold text-lg">₩28,000</div>
+                    <div class="text-sm text-green-600">+0.00%</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 인터넷 섹터 -->
+          <div class="sector-group mb-6" data-sector="인터넷">
+            <div class="flex items-center justify-between mb-3">
+              <h4 class="font-semibold text-lg text-red-800">🔴 인터넷</h4>
+              <span class="text-sm text-slate-500">3개 종목</span>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <div class="stock-card" data-ticker="035420">
+                <div class="flex justify-between items-center">
+                  <div>
+                    <div class="font-semibold">NAVER</div>
+                    <div class="text-sm text-slate-500">035420</div>
+                  </div>
+                  <div class="text-right">
+                    <div class="font-bold text-lg">₩220,000</div>
+                    <div class="text-sm text-green-600">+0.00%</div>
+                  </div>
+                </div>
+              </div>
+              <div class="stock-card" data-ticker="035720">
+                <div class="flex justify-between items-center">
+                  <div>
+                    <div class="font-semibold">카카오</div>
+                    <div class="text-sm text-slate-500">035720</div>
+                  </div>
+                  <div class="text-right">
+                    <div class="font-bold text-lg">₩45,000</div>
+                    <div class="text-sm text-green-600">+0.00%</div>
+                  </div>
+                </div>
+              </div>
+              <div class="stock-card" data-ticker="097950">
+                <div class="flex justify-between items-center">
+                  <div>
+                    <div class="font-semibold">CJ제일제당</div>
+                    <div class="text-sm text-slate-500">097950</div>
+                  </div>
+                  <div class="text-right">
+                    <div class="font-bold text-lg">₩380,000</div>
+                    <div class="text-sm text-green-600">+0.00%</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 기타 주요 섹터들 (접힌 상태) -->
+          <div class="sector-group mb-6" data-sector="건설">
+            <div class="flex items-center justify-between mb-3 cursor-pointer" onclick="toggleSector('건설')">
+              <h4 class="font-semibold text-lg text-orange-800">🟠 건설/조선</h4>
+              <span class="text-sm text-slate-500">3개 종목</span>
+              <span class="text-sm text-slate-400">▼ 펼치기</span>
+            </div>
+            <div class="sector-content hidden">
+              <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div class="stock-card" data-ticker="028260">삼성물산 (028260)</div>
+                <div class="stock-card" data-ticker="009540">현대중공업 (009540)</div>
+                <div class="stock-card" data-ticker="010140">삼성중공업 (010140)</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="sector-group mb-6" data-sector="통신">
+            <div class="flex items-center justify-between mb-3 cursor-pointer" onclick="toggleSector('통신')">
+              <h4 class="font-semibold text-lg text-indigo-800">🔷 통신</h4>
+              <span class="text-sm text-slate-500">2개 종목</span>
+              <span class="text-sm text-slate-400">▼ 펼치기</span>
+            </div>
+            <div class="sector-content hidden">
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div class="stock-card" data-ticker="017670">SK텔레콤 (017670)</div>
+                <div class="stock-card" data-ticker="030200">KT (030200)</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="sector-group mb-6" data-sector="바이오">
+            <div class="flex items-center justify-between mb-3 cursor-pointer" onclick="toggleSector('바이오')">
+              <h4 class="font-semibold text-lg text-pink-800">🌸 바이오</h4>
+              <span class="text-sm text-slate-500">2개 종목</span>
+              <span class="text-sm text-slate-400">▼ 펼치기</span>
+            </div>
+            <div class="sector-content hidden">
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div class="stock-card" data-ticker="068270">셀트리온 (068270)</div>
+                <div class="stock-card" data-ticker="207940">삼성바이오로직스 (207940)</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 차트와 이벤트 -->
+    <div class="grid lg:grid-cols-3 gap-4">
+      <div class="lg:col-span-2 bg-white p-4 rounded-2xl shadow-soft">
+        <div class="flex justify-between items-center mb-4">
+          <span class="font-semibold">주가 변화 차트</span>
+          <select id="chartStock" class="border rounded-lg px-3 py-1">
+            <option value="005930">삼성전자</option>
+            <option value="000660">SK하이닉스</option>
+            <option value="005380">현대차</option>
+            <option value="005490">기아</option>
+            <option value="035420">NAVER</option>
+            <option value="051910">LG화학</option>
+            <option value="006400">삼성SDI</option>
+            <option value="012450">한화에어로스페이스</option>
+            <option value="055550">신한지주</option>
+            <option value="086790">하나금융지주</option>
+            <option value="105560">KB금융</option>
+            <option value="138930">BNK금융지주</option>
+            <option value="028260">삼성물산</option>
+            <option value="009540">현대중공업</option>
+            <option value="010140">삼성중공업</option>
+            <option value="017670">SK텔레콤</option>
+            <option value="030200">KT</option>
+            <option value="011070">LG이노텍</option>
+            <option value="015760">한국전력</option>
+            <option value="096770">SK이노베이션</option>
+            <option value="068270">셀트리온</option>
+            <option value="207940">삼성바이오로직스</option>
+            <option value="097950">CJ제일제당</option>
+            <option value="035720">카카오</option>
+            <option value="323410">카카오뱅크</option>
+            <option value="373220">LG에너지솔루션</option>
+          </select>
+        </div>
+        <canvas id="priceChart" class="mt-3 h-64 w-full"></canvas>
+      </div>
+      
+      <div class="bg-white p-4 rounded-2xl shadow-soft">
+        <div class="font-semibold mb-4">실시간 이벤트</div>
+        <div class="event-feed" id="eventFeed">
+          <div class="text-center text-slate-500 py-8">
+            시뮬레이션을 시작하면 AI 이벤트가 생성됩니다
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 시뮬레이션 통계 -->
+    <div class="grid md:grid-cols-4 gap-4">
+      <div class="stat-card">
+        <div class="stat-value text-blue-600" id="totalEvents">0</div>
+        <div class="stat-label">발생한 이벤트</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value text-green-600" id="simulationHours">0</div>
+        <div class="stat-label">시뮬레이션 시간</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value text-purple-600" id="marketVolatility">0%</div>
+        <div class="stat-label">시장 변동성</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value text-orange-600" id="aiActivity">0</div>
+        <div class="stat-label">AI 활동도</div>
+      </div>
+    </div>
+  </main>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// 시뮬레이션 상태
+let simulationState = 'stopped';
+let simulationSpeed = 2;
+let simulationStartTime = null;
+let priceHistory = {};
+let eventCount = 0;
+
+// 차트 초기화
+const ctx = document.getElementById('priceChart');
+const priceChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+        labels: [],
+        datasets: [{
+            label: '주가',
+            data: [],
+            borderColor: '#3b82f6',
+            backgroundColor: 'rgba(59, 130, 246, 0.1)',
+            tension: 0.4
+        }]
+    },
+    options: {
+        responsive: true,
+        plugins: {
+            legend: { display: false }
+        },
+        scales: {
+            y: {
+                beginAtZero: false,
+                ticks: {
+                    callback: function(value) {
+                        return '₩' + value.toLocaleString();
+                    }
+                }
+            }
+        }
+    }
+});
+
+// 주식 데이터 초기화 (주요 종목만)
+const stocks = {
+    '005930': { name: '삼성전자', price: 79000, change: 0, sector: '반도체' },
+    '000660': { name: 'SK하이닉스', price: 45000, change: 0, sector: '반도체' },
+    '005380': { name: '현대차', price: 180000, change: 0, sector: '자동차' },
+    '005490': { name: '기아', price: 85000, change: 0, sector: '자동차' },
+    '035420': { name: 'NAVER', price: 220000, change: 0, sector: '인터넷' },
+    '051910': { name: 'LG화학', price: 520000, change: 0, sector: '화학' },
+    '006400': { name: '삼성SDI', price: 380000, change: 0, sector: '화학' },
+    '055550': { name: '신한지주', price: 45000, change: 0, sector: '금융' },
+    '086790': { name: '하나금융지주', price: 42000, change: 0, sector: '금융' },
+    '035720': { name: '카카오', price: 45000, change: 0, sector: '인터넷' }
+};
+
+// 섹터별 필터링
+function filterBySector(sector) {
+    const sectorGroups = document.querySelectorAll('.sector-group');
+    
+    sectorGroups.forEach(group => {
+        if (sector === 'all' || group.dataset.sector === sector) {
+            group.style.display = 'block';
+        } else {
+            group.style.display = 'none';
+        }
+    });
+    
+    // 버튼 스타일 업데이트
+    document.querySelectorAll('.sector-filter-btn').forEach(btn => {
+        btn.classList.remove('active');
+        btn.className = btn.className.replace('bg-blue-100 text-blue-800', 'bg-gray-100 text-gray-800');
+    });
+    
+    event.target.classList.add('active');
+    event.target.className = event.target.className.replace('bg-gray-100 text-gray-800', 'bg-blue-100 text-blue-800');
+}
+
+// 섹터 접기/펼치기
+function toggleSector(sectorName) {
+    const sectorGroup = document.querySelector(`[data-sector="${sectorName}"]`);
+    const content = sectorGroup.querySelector('.sector-content');
+    const toggleText = sectorGroup.querySelector('.cursor-pointer span:last-child');
+    
+    if (content.classList.contains('hidden')) {
+        content.classList.remove('hidden');
+        toggleText.textContent = '▲ 접기';
+    } else {
+        content.classList.add('hidden');
+        toggleText.textContent = '▼ 펼치기';
+    }
+}
+
+// 주식 카드 업데이트
+function updateStockCards() {
+    Object.entries(stocks).forEach(([ticker, stock]) => {
+        const card = document.querySelector(`[data-ticker="${ticker}"]`);
+        if (card) {
+            const priceElement = card.querySelector('.font-bold.text-lg');
+            const changeElement = card.querySelector('.text-sm');
+            
+            if (priceElement) priceElement.textContent = `₩${stock.price.toLocaleString()}`;
+            if (changeElement) {
+                const changePercent = (stock.change * 100).toFixed(2);
+                changeElement.textContent = `${stock.change > 0 ? '+' : ''}${changePercent}%`;
+                changeElement.className = `text-sm ${stock.change > 0 ? 'text-green-600' : stock.change < 0 ? 'text-red-600' : 'text-slate-600'}`;
+            }
+            
+            // 카드 스타일 업데이트
+            card.className = `stock-card ${stock.change > 0 ? 'up' : stock.change < 0 ? 'down' : 'neutral'}`;
+        }
+    });
+}
+
+// 이벤트 추가
+function addEvent(event) {
+    const feed = document.getElementById('eventFeed');
+    const eventDiv = document.createElement('div');
+    
+    const sentimentClass = event.sentiment > 0 ? 'event-positive' : 
+                          event.sentiment < 0 ? 'event-negative' : 'event-neutral';
+    
+    eventDiv.className = `event-item ${sentimentClass}`;
+    eventDiv.innerHTML = `
+        <div class="flex justify-between items-start">
+            <div>
+                <div class="font-medium">${event.title}</div>
+                <div class="text-sm text-slate-600 mt-1">${event.category}</div>
+            </div>
+            <div class="text-xs text-slate-500">${event.time}</div>
+        </div>
+        <div class="text-sm text-slate-700 mt-2">${event.description}</div>
+        <div class="flex gap-2 mt-2">
+            <span class="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded">영향도: ${event.impact}</span>
+            <span class="px-2 py-1 bg-green-100 text-green-800 text-xs rounded">${event.affectedStocks.join(', ')}</span>
+        </div>
+    `;
+    
+    feed.insertBefore(eventDiv, feed.firstChild);
+    
+    // 최대 10개까지만 표시
+    if (feed.children.length > 10) {
+        feed.removeChild(feed.lastChild);
+    }
+    
+    eventCount++;
+    document.getElementById('totalEvents').textContent = eventCount;
+}
+
+// 가상 이벤트 생성 (테스트용)
+function generateMockEvent() {
+    const events = [
+        // 반도체/기술
+        {
+            title: 'AI 칩 수요 폭증, 반도체 업계 강세',
+            category: '기술',
+            sentiment: 0.8,
+            impact: '높음',
+            affectedStocks: ['005930', '000660', '011070'],
+            description: 'AI 서버 수요 증가로 반도체 업계 전망 밝아짐',
+            time: new Date().toLocaleTimeString()
+        },
+        // 자동차
+        {
+            title: '정부, 친환경차 보조금 확대 검토',
+            category: '정책',
+            sentiment: 0.6,
+            impact: '중간',
+            affectedStocks: ['005380', '005490'],
+            description: '전기차 보조금 확대로 자동차 업계 호재',
+            time: new Date().toLocaleTimeString()
+        },
+        // 금융
+        {
+            title: '글로벌 금리 인하 기대감 확산',
+            category: '경제',
+            sentiment: 0.4,
+            impact: '높음',
+            affectedStocks: ['055550', '086790', '105560', '138930'],
+            description: '미국 연준의 금리 인하 기대감으로 금융주 강세',
+            time: new Date().toLocaleTimeString()
+        },
+        // 바이오
+        {
+            title: '신약 개발 성공, 바이오 업계 상승',
+            category: '바이오',
+            sentiment: 0.9,
+            impact: '높음',
+            affectedStocks: ['068270', '207940'],
+            description: '치료 난치성 질환 신약 개발 성공으로 바이오 업계 급등',
+            time: new Date().toLocaleTimeString()
+        },
+        // 인터넷/플랫폼
+        {
+            title: '디지털 전환 가속화, 플랫폼 업계 성장',
+            category: '기술',
+            sentiment: 0.7,
+            impact: '중간',
+            affectedStocks: ['035420', '035720', '323410'],
+            description: '기업들의 디지털 전환 가속화로 플랫폼 업계 성장',
+            time: new Date().toLocaleTimeString()
+        },
+        // 화학/에너지
+        {
+            title: '친환경 에너지 정책 확대',
+            category: '정책',
+            sentiment: 0.6,
+            impact: '중간',
+            affectedStocks: ['006400', '373220', '096770'],
+            description: '정부의 친환경 에너지 정책 확대로 관련 업계 호재',
+            time: new Date().toLocaleTimeString()
+        },
+        // 건설/조선
+        {
+            title: '해외 수주 확대, 조선업계 호조',
+            category: '경제',
+            sentiment: 0.5,
+            impact: '중간',
+            affectedStocks: ['009540', '010140', '028260'],
+            description: '중동 지역 수주 확대로 조선/건설업계 호조',
+            time: new Date().toLocaleTimeString()
+        },
+        // 방산
+        {
+            title: '국방 예산 증액, 방산업계 성장',
+            category: '정책',
+            sentiment: 0.7,
+            impact: '중간',
+            affectedStocks: ['012450', '009540', '010140'],
+            description: '국방 예산 증액으로 방산업계 성장 전망',
+            time: new Date().toLocaleTimeString()
+        },
+        // 통신
+        {
+            title: '5G 인프라 확충, 통신업계 투자 확대',
+            category: '기술',
+            sentiment: 0.5,
+            impact: '중간',
+            affectedStocks: ['017670', '030200'],
+            description: '정부의 5G 인프라 확충 정책으로 통신업계 투자 확대',
+            time: new Date().toLocaleTimeString()
+        },
+        // 전력/공공
+        {
+            title: '전력 요금 인상, 공공요금 정책 변화',
+            category: '정책',
+            sentiment: -0.3,
+            impact: '높음',
+            affectedStocks: ['015760', '096770'],
+            description: '전력 요금 인상으로 공공요금 정책 변화',
+            time: new Date().toLocaleTimeString()
+        }
+    ];
+    
+    const randomEvent = events[Math.floor(Math.random() * events.length)];
+    addEvent(randomEvent);
+}
+
+// 주가 업데이트 (가상)
+function updateStockPrices() {
+    Object.keys(stocks).forEach(ticker => {
+        const stock = stocks[ticker];
+        const change = (Math.random() - 0.5) * 0.02; // ±1% 변화
+        const oldPrice = stock.price;
+        stock.price = Math.round(stock.price * (1 + change));
+        stock.change = change;
+        
+        // 차트 데이터 업데이트
+        if (!priceHistory[ticker]) {
+            priceHistory[ticker] = [];
+        }
+        
+        priceHistory[ticker].push({
+            time: new Date().toLocaleTimeString(),
+            price: stock.price
+        });
+        
+        // 최대 20개 데이터 포인트만 유지
+        if (priceHistory[ticker].length > 20) {
+            priceHistory[ticker].shift();
+        }
+    });
+    
+    updateStockCards();
+    updateChart();
+}
+
+// 차트 업데이트
+function updateChart() {
+    const selectedStock = document.getElementById('chartStock').value;
+    const data = priceHistory[selectedStock] || [];
+    
+    priceChart.data.labels = data.map(d => d.time);
+    priceChart.data.datasets[0].data = data.map(d => d.price);
+    priceChart.update();
+}
+
+// 시뮬레이션 시간 업데이트
+function updateSimulationTime() {
+    if (simulationStartTime && simulationState === 'running') {
+        const elapsed = Date.now() - simulationStartTime;
+        const hours = Math.floor(elapsed / (1000 * 60 * 60 * simulationSpeed));
+        const minutes = Math.floor((elapsed % (1000 * 60 * 60 * simulationSpeed)) / (1000 * 60 * simulationSpeed));
+        
+        document.getElementById('simulationTime').textContent = 
+            `시뮬레이션 시간: +${hours}시간 ${minutes}분`;
+        document.getElementById('simulationHours').textContent = hours;
+    }
+}
+
+// 시뮬레이션 시작
+function startSimulation() {
+    simulationState = 'running';
+    simulationStartTime = Date.now();
+    
+    document.getElementById('startBtn').disabled = true;
+    document.getElementById('pauseBtn').disabled = false;
+    document.getElementById('stopBtn').disabled = false;
+    
+    // 주기적으로 업데이트
+    simulationInterval = setInterval(() => {
+        updateStockPrices();
+        updateSimulationTime();
+        
+        // 랜덤하게 이벤트 생성
+        if (Math.random() < 0.3) {
+            generateMockEvent();
+        }
+    }, 2000);
+}
+
+// 시뮬레이션 일시정지
+function pauseSimulation() {
+    simulationState = 'paused';
+    clearInterval(simulationInterval);
+    
+    document.getElementById('startBtn').disabled = false;
+    document.getElementById('pauseBtn').disabled = true;
+}
+
+// 시뮬레이션 정지
+function stopSimulation() {
+    simulationState = 'stopped';
+    clearInterval(simulationInterval);
+    simulationStartTime = null;
+    
+    document.getElementById('startBtn').disabled = false;
+    document.getElementById('pauseBtn').disabled = true;
+    document.getElementById('stopBtn').disabled = true;
+    
+    document.getElementById('simulationTime').textContent = '시뮬레이션 시간: 2025-08-20 14:24';
+    document.getElementById('simulationHours').textContent = '0';
+}
+
+// 이벤트 리스너
+document.getElementById('startBtn').addEventListener('click', startSimulation);
+document.getElementById('pauseBtn').addEventListener('click', pauseSimulation);
+document.getElementById('stopBtn').addEventListener('click', stopSimulation);
+
+// 속도 변경
+document.querySelectorAll('.speed-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+        document.querySelectorAll('.speed-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        simulationSpeed = parseInt(btn.dataset.speed);
+    });
+});
+
+// 섹터 필터링
+document.querySelectorAll('.sector-filter-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+        const sector = e.target.dataset.sector;
+        filterBySector(sector);
+    });
+});
+
+// 차트 종목 변경
+document.getElementById('chartStock').addEventListener('change', updateChart);
+
+// 초기화
+updateStockCards();
+updateChart();
+
+// 시뮬레이션 통계 업데이트
+setInterval(() => {
+    if (simulationState === 'running') {
+        const volatility = Math.random() * 5 + 1;
+        document.getElementById('marketVolatility').textContent = volatility.toFixed(1) + '%';
+        
+        const aiActivity = Math.floor(Math.random() * 10) + 1;
+        document.getElementById('aiActivity').textContent = aiActivity;
+    }
+}, 5000);
+</script>
+{% endblock %} 

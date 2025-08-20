@@ -59,7 +59,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'rest_framework',
     'corsheaders',
-    'api',
+    'sams',
 ]
 
 
@@ -81,11 +81,11 @@ CORS_ALLOWED_ORIGINS = [
     "https://<your-app>.firebaseapp.com",
 ]
 
-REST_FRAMEWORK = {
-    "DEFAULT_AUTHENTICATION_CLASSES": [
-        "api.auth.FirebaseAuthentication",
-    ],
-}
+# REST_FRAMEWORK = {
+#     "DEFAULT_AUTHENTICATION_CLASSES": [
+#         "api.auth.FirebaseAuthentication",
+#     ],
+# }
 
 ROOT_URLCONF = 'config.urls'
 
