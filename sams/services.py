@@ -322,6 +322,11 @@ class SimulationService:
     _active_simulations = {}  # 시뮬레이션 인스턴스 관리
     _background_simulation = None  # 백그라운드 시뮬레이션
     _background_thread = None
+    _pending_settings = {
+        "media_bias_scale": 1.0,
+        "media_credibility_scale": 1.0,
+        "price_volatility_scale": 1.0,
+    }
     
     @classmethod
     def start_background_simulation(cls):
@@ -410,6 +415,7 @@ class SimulationService:
             
             # 시뮬레이션 엔진 초기화
             cls._background_simulation = SimulationEngine(initial_data)
+            cls._background_simulation.sim_id = "background-sim"
             cls._background_simulation.set_speed(SimulationSpeed.FAST)
             cls._background_simulation.set_event_generation_interval(10)  # 10초마다 이벤트 생성
             
@@ -436,6 +442,19 @@ class SimulationService:
                 if cls._background_simulation.state.value == 'stopped':
                     break
                 
+                # 보류 중인 설정이 있으면 다음 틱에 반영
+                try:
+                    cls._background_simulation.price_volatility_scale = float(cls._pending_settings.get("price_volatility_scale", 1.0))
+                    # 언론 파라미터 스케일은 엔진 내부 cred 사용처에서 곱해 주기 위해 market_params에도 반영
+                    mp = cls._background_simulation.market_params
+                    if "news" in mp:
+                        bias = float(mp["news"].get("bias", 0.0)) * float(cls._pending_settings.get("media_bias_scale", 1.0))
+                        cred = float(mp["news"].get("credibility", 0.7)) * float(cls._pending_settings.get("media_credibility_scale", 1.0))
+                        mp["news"]["bias"] = max(-1.0, min(1.0, bias))
+                        mp["news"]["credibility"] = max(0.0, min(1.0, cred))
+                except Exception:
+                    pass
+
                 # 시뮬레이션 업데이트 (매 틱마다 주가 변동)
                 cls._background_simulation.update()
                 
@@ -492,10 +511,29 @@ class SimulationService:
                 'simulation_time': current_state['simulation_time'],
                 'stocks': current_state['stocks'],
                 'recent_events': current_state['recent_events'],
-                'recent_news': current_state['recent_news']
+                'recent_news': current_state['recent_news'],
+                'settings': {
+                    'price_volatility_scale': getattr(cls._background_simulation, 'price_volatility_scale', 1.0),
+                    'media_bias_scale': cls._pending_settings.get('media_bias_scale', 1.0),
+                    'media_credibility_scale': cls._pending_settings.get('media_credibility_scale', 1.0),
+                }
             }
         except Exception as e:
             return {'error': str(e)}
+
+    @classmethod
+    def update_background_settings(cls, *, media_bias_scale: float = None, media_credibility_scale: float = None, price_volatility_scale: float = None) -> dict:
+        """다음 틱부터 반영될 관리자 설정 업데이트"""
+        try:
+            if media_bias_scale is not None:
+                cls._pending_settings["media_bias_scale"] = float(media_bias_scale)
+            if media_credibility_scale is not None:
+                cls._pending_settings["media_credibility_scale"] = float(media_credibility_scale)
+            if price_volatility_scale is not None:
+                cls._pending_settings["price_volatility_scale"] = float(price_volatility_scale)
+            return {"success": True, "message": "설정이 업데이트되었으며 다음 틱부터 반영됩니다."}
+        except Exception as e:
+            return {"success": False, "message": str(e)}
     
     @classmethod
     def start_simulation(cls, simulation_id, settings):
