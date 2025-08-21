@@ -5,10 +5,13 @@ import json
 import threading
 import time
 from datetime import datetime
+from django.http import JsonResponse
 from .models import Portfolio, Stock, Position, Transaction, Watchlist
-from core.models.simulation_engine import SimulationEngine
-from data.parameter_templates import get_initial_data
+from core.models.simulation_engine import SimulationEngine, SimulationSpeed
+from core.models.config.generator import get_internal_params, build_entities_from_params
+from utils.id_generator import generate_id
 from utils.logger import save_event_log, save_market_snapshot
+from data.parameter_templates import get_initial_data
 
 
 class PortfolioService:
@@ -317,6 +320,182 @@ class SimulationService:
     """시뮬레이션 관리 서비스"""
     
     _active_simulations = {}  # 시뮬레이션 인스턴스 관리
+    _background_simulation = None  # 백그라운드 시뮬레이션
+    _background_thread = None
+    
+    @classmethod
+    def start_background_simulation(cls):
+        """백그라운드에서 자동으로 주가 변동이 일어나는 시뮬레이션 시작"""
+        if cls._background_simulation is not None:
+            return {'success': False, 'message': '백그라운드 시뮬레이션이 이미 실행 중입니다.'}
+        
+        try:
+            # 시뮬레이션 파라미터 초기화
+            raw_params = get_internal_params(seed=7)
+            entity_params = build_entities_from_params(raw_params)
+            
+            # entity_params를 딕셔너리로 변환
+            market_params_dict = {
+                "public": {
+                    "consumer_index": entity_params["public"].consumer_index,
+                    "risk_appetite": entity_params["public"].risk_appetite,
+                    "news_sensitivity": entity_params["public"].news_sensitivity,
+                },
+                "company": {
+                    "industry": entity_params["company"].industry,
+                    "orientation": entity_params["company"].orientation,
+                    "size": entity_params["company"].size,
+                    "rnd_focus": entity_params["company"].rnd_focus,
+                    "volatility": entity_params["company"].volatility,
+                },
+                "government": {
+                    "policy_direction": entity_params["government"].policy_direction,
+                    "interest_rate": entity_params["government"].interest_rate,
+                    "tax_policy": entity_params["government"].tax_policy,
+                    "industry_support": entity_params["government"].industry_support,
+                },
+                "news": {
+                    "bias": entity_params["news"].bias,
+                    "credibility": entity_params["news"].credibility,
+                    "impact_level": entity_params["news"].impact_level,
+                    "category": entity_params["news"].category,
+                    "sentiment": entity_params["news"].sentiment,
+                }
+            }
+            
+            # 초기 주가 데이터
+            initial_data = {
+                "stocks": {
+                    # 반도체/IT
+                    "005930": {"price": 79000, "volume": 1000000, "base_price": 79000},   # 삼성전자
+                    "000660": {"price": 45000, "volume": 500000,  "base_price": 45000},   # SK하이닉스
+                    "011070": {"price": 180000, "volume": 200000, "base_price": 180000},  # LG이노텍
+                    "035420": {"price": 220000, "volume": 300000, "base_price": 220000},  # NAVER
+                    "035720": {"price": 45000,  "volume": 400000, "base_price": 45000},   # 카카오
+
+                    # 자동차
+                    "005380": {"price": 180000, "volume": 800000, "base_price": 180000},  # 현대차
+                    "005490": {"price": 85000,  "volume": 600000, "base_price": 85000},   # 기아
+
+                    # 화학/배터리
+                    "051910": {"price": 520000, "volume": 300000, "base_price": 520000},  # LG화학
+                    "006400": {"price": 380000, "volume": 250000, "base_price": 380000},  # 삼성SDI
+                    "373220": {"price": 450000, "volume": 220000, "base_price": 450000},  # LG에너지솔루션
+                    "096770": {"price": 145000, "volume": 210000, "base_price": 145000},  # SK이노베이션
+
+                    # 금융
+                    "055550": {"price": 45000,  "volume": 700000, "base_price": 45000},   # 신한지주
+                    "086790": {"price": 42000,  "volume": 650000, "base_price": 42000},   # 하나금융지주
+                    "105560": {"price": 65000,  "volume": 620000, "base_price": 65000},   # KB금융
+                    "138930": {"price": 8500,   "volume": 500000, "base_price": 8500},    # BNK금융지주
+                    "323410": {"price": 28000,  "volume": 580000, "base_price": 28000},   # 카카오뱅크
+
+                    # 건설/조선
+                    "028260": {"price": 45000,  "volume": 350000, "base_price": 45000},   # 삼성물산
+                    "009540": {"price": 120000, "volume": 180000, "base_price": 120000},  # 현대중공업
+                    "010140": {"price": 8500,   "volume": 480000, "base_price": 8500},    # 삼성중공업
+
+                    # 통신/전력
+                    "017670": {"price": 45000,  "volume": 320000, "base_price": 45000},   # SK텔레콤
+                    "030200": {"price": 32000,  "volume": 300000, "base_price": 32000},   # KT
+                    "015760": {"price": 21000,  "volume": 400000, "base_price": 21000},   # 한국전력
+
+                    # 바이오/식품
+                    "068270": {"price": 180000, "volume": 260000, "base_price": 180000},  # 셀트리온
+                    "207940": {"price": 850000, "volume": 120000, "base_price": 850000},  # 삼성바이오로직스
+                    "097950": {"price": 380000, "volume": 160000, "base_price": 380000},  # CJ제일제당
+                },
+                "market_params": market_params_dict
+            }
+            
+            # 시뮬레이션 엔진 초기화
+            cls._background_simulation = SimulationEngine(initial_data)
+            cls._background_simulation.set_speed(SimulationSpeed.FAST)
+            cls._background_simulation.set_event_generation_interval(10)  # 10초마다 이벤트 생성
+            
+            # 백그라운드 스레드 시작
+            cls._background_thread = threading.Thread(
+                target=cls._run_background_simulation,
+                daemon=True
+            )
+            cls._background_thread.start()
+            
+            print("🚀 백그라운드 시뮬레이션 시작됨 - 매 틱마다 주가 변동 발생")
+            return {'success': True, 'message': '백그라운드 시뮬레이션이 시작되었습니다.'}
+            
+        except Exception as e:
+            return {'success': False, 'message': f'백그라운드 시뮬레이션 시작 실패: {str(e)}'}
+    
+    @classmethod
+    def _run_background_simulation(cls):
+        """백그라운드에서 계속 실행되는 시뮬레이션 루프"""
+        try:
+            cls._background_simulation.start()
+            
+            while True:
+                if cls._background_simulation.state.value == 'stopped':
+                    break
+                
+                # 시뮬레이션 업데이트 (매 틱마다 주가 변동)
+                cls._background_simulation.update()
+                
+                # 현재 시장 상태를 Firebase에 저장
+                current_state = cls._background_simulation.get_current_state()
+                try:
+                    save_market_snapshot(
+                        sim_id="background-sim",
+                        stocks=current_state['stocks'],
+                        market_params=current_state.get('market_params', {}),
+                        simulation_time=datetime.now(),
+                        meta={
+                            "tick_type": "background_auto",
+                            "note": "자동 백그라운드 시뮬레이션 틱",
+                            "total_events": len(current_state['recent_events'])
+                        }
+                    )
+                except Exception as e:
+                    print(f"Firebase 저장 실패: {e}")
+                
+                # 1초마다 업데이트
+                time.sleep(1)
+                
+        except Exception as e:
+            print(f"백그라운드 시뮬레이션 오류: {e}")
+    
+    @classmethod
+    def stop_background_simulation(cls):
+        """백그라운드 시뮬레이션 정지"""
+        if cls._background_simulation is None:
+            return {'success': False, 'message': '백그라운드 시뮬레이션이 실행 중이 아닙니다.'}
+        
+        try:
+            cls._background_simulation.stop()
+            cls._background_simulation = None
+            cls._background_thread = None
+            
+            print("🛑 백그라운드 시뮬레이션 정지됨")
+            return {'success': True, 'message': '백그라운드 시뮬레이션이 정지되었습니다.'}
+            
+        except Exception as e:
+            return {'success': False, 'message': f'백그라운드 시뮬레이션 정지 실패: {str(e)}'}
+    
+    @classmethod
+    def get_background_simulation_status(cls):
+        """백그라운드 시뮬레이션 상태 조회"""
+        if cls._background_simulation is None:
+            return None
+        
+        try:
+            current_state = cls._background_simulation.get_current_state()
+            return {
+                'status': current_state['state'],
+                'simulation_time': current_state['simulation_time'],
+                'stocks': current_state['stocks'],
+                'recent_events': current_state['recent_events'],
+                'recent_news': current_state['recent_news']
+            }
+        except Exception as e:
+            return {'error': str(e)}
     
     @classmethod
     def start_simulation(cls, simulation_id, settings):

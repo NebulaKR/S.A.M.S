@@ -189,3 +189,29 @@ def get_news_articles_for_event(sim_id: str, event_id: str) -> List[Dict[str, An
     except Exception as e:
         print(f"뉴스 기사 조회 중 오류: {e}")
         return []
+
+def get_recent_market_snapshots(sim_id: str, limit: int = 10) -> List[Dict[str, Any]]:
+    """
+    특정 시뮬레이션의 최근 시장 스냅샷들을 조회한다.
+    
+    Args:
+        sim_id: 시뮬레이션 ID
+        limit: 조회할 스냅샷 수
+    
+    Returns:
+        최근 시장 스냅샷 목록
+    """
+    try:
+        db = get_firestore()
+        docs = (
+            db.collection("simulations")
+              .document(sim_id)
+              .collection("snapshots")
+              .order_by("created_at", direction="DESCENDING")
+              .limit(limit)
+              .stream()
+        )
+        return [doc.to_dict() for doc in docs]
+    except Exception as e:
+        print(f"시장 스냅샷 조회 중 오류: {e}")
+        return []

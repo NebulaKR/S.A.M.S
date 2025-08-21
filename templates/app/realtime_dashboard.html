@@ -1,0 +1,194 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}실시간 주가 대시보드{% endblock %}
+
+{% block head_extra %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+  .status-dot { width: 10px; height: 10px; border-radius: 9999px; display: inline-block; }
+  .skeleton { animation: pulse 1.5s ease-in-out infinite; background: linear-gradient(90deg,#f3f4f6 25%,#e5e7eb 37%,#f3f4f6 63%); background-size:400% 100%; }
+  @keyframes pulse { 0%{background-position:100% 50%} 100%{background-position:0 50%} }
+</style>
+{% endblock %}
+
+{% block body %}
+<div class="grid grid-cols-12 min-h-screen">
+  <aside class="col-span-2 bg-white border-r">
+    <div class="p-4 font-bold">SAMS</div>
+    <nav class="px-2 space-y-1">
+      <a href="{% url 'home' %}" class="block px-3 py-2 hover:bg-slate-50 rounded-lg">홈</a>
+      <a href="{% url 'simulation' %}" class="block px-3 py-2 hover:bg-slate-50 rounded-lg">주식 종목</a>
+      <a href="{% url 'portfolio' %}" class="block px-3 py-2 hover:bg-slate-50 rounded-lg">포트폴리오</a>
+      <a href="{% url 'trading' %}" class="block px-3 py-2 hover:bg-slate-50 rounded-lg">거래</a>
+      <a href="{% url 'news' %}" class="block px-3 py-2 hover:bg-slate-50 rounded-lg">뉴스</a>
+      <a href="{% url 'admin' %}" class="block px-3 py-2 hover:bg-slate-50 rounded-lg">설정</a>
+      <a href="{% url 'realtime' %}" class="block px-3 py-2 bg-slate-100 rounded-lg">실시간 대시보드</a>
+    </nav>
+  </aside>
+
+  <main class="col-span-10 bg-slate-50 p-4 space-y-6">
+    <div class="rounded-2xl shadow-soft bg-white p-4 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <div id="simStatusDot" class="status-dot bg-red-500"></div>
+        <div>
+          <div class="text-sm text-slate-500">시뮬레이션 상태</div>
+          <div id="statusText" class="font-semibold">확인 중...</div>
+        </div>
+      </div>
+      <div class="flex items-center gap-2">
+        <button id="startBtn" class="px-4 py-2 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700">시작</button>
+        <button id="stopBtn" class="px-4 py-2 rounded-lg bg-rose-600 text-white hover:bg-rose-700">정지</button>
+        <button id="refreshBtn" class="px-3 py-2 rounded-lg border bg-white hover:bg-slate-50">새로고침</button>
+      </div>
+    </div>
+
+    <div class="rounded-2xl shadow-soft bg-white">
+      <div class="p-4 border-b flex items-center justify-between">
+        <div>
+          <h3 class="text-lg font-semibold">실시간 주가</h3>
+          <div class="text-sm text-slate-500">파이어스토어 최신 스냅샷 기준</div>
+        </div>
+        <div class="text-sm text-slate-500">마지막 업데이트: <span id="lastUpdate">-</span></div>
+      </div>
+      <div id="stocksGrid" class="p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3"></div>
+    </div>
+
+    <div class="grid lg:grid-cols-3 gap-4">
+      <div class="lg:col-span-2 rounded-2xl shadow-soft bg-white p-4">
+        <div class="flex items-center justify-between mb-3">
+          <div class="font-semibold">주가 변화 차트</div>
+          <div class="flex items-center gap-2">
+            <label for="chartTicker" class="text-sm text-slate-600">종목</label>
+            <select id="chartTicker" class="border rounded-lg px-3 py-1"></select>
+          </div>
+        </div>
+        <div id="rtChartWrap" style="height: 320px; position: relative;">
+          <div id="chartSkeleton" class="absolute inset-0 rounded-lg skeleton"></div>
+          <canvas id="rtPriceChart" class="absolute inset-0 w-full h-full"></canvas>
+        </div>
+      </div>
+      <div class="rounded-2xl shadow-soft bg-white p-4">
+        <div class="font-semibold mb-2">도움말</div>
+        <ul class="text-sm text-slate-600 list-disc pl-5 space-y-1">
+          <li>서버에서 매 틱마다 가격이 갱신됩니다.</li>
+          <li>상단 버튼으로 백그라운드 시뮬레이션을 제어할 수 있습니다.</li>
+          <li>데이터 소스: Firestore 시뮬레이션 스냅샷</li>
+        </ul>
+      </div>
+    </div>
+  </main>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let chartRef = null;
+let tickersInitialized = false;
+let stocksIntervalId = null;
+
+async function fetchJSON(url) { const r = await fetch(url, { credentials: 'same-origin' }); return r.json(); }
+
+async function checkStatus() {
+  try {
+    const data = await fetchJSON('/api/admin/background-simulation/status/');
+    const dot = document.getElementById('simStatusDot');
+    const text = document.getElementById('statusText');
+    if (data.success && data.data) {
+      const running = data.data.status === 'running';
+      dot.className = 'status-dot ' + (running ? 'bg-emerald-500' : 'bg-rose-500');
+      text.textContent = running ? '실행 중' : '정지됨';
+      document.getElementById('startBtn').disabled = running;
+      document.getElementById('stopBtn').disabled = !running;
+    } else { dot.className = 'status-dot bg-rose-500'; text.textContent = '확인 불가'; }
+  } catch (e) {}
+}
+
+async function loadRealtimeStocks() {
+  try {
+    const data = await fetchJSON('/api/stocks/realtime/');
+    if (!data.success) return;
+    const { stocks, last_update } = data.data;
+    document.getElementById('lastUpdate').textContent = last_update ? new Date(last_update).toLocaleString('ko-KR') : '-';
+
+    // Populate ticker select only once
+    const sel = document.getElementById('chartTicker');
+    if (!tickersInitialized) {
+      sel.innerHTML = '';
+      (stocks || []).forEach(s => { const opt = document.createElement('option'); opt.value = s.ticker; opt.textContent = `${s.name} (${s.ticker})`; sel.appendChild(opt); });
+      tickersInitialized = true;
+      // First load chart for initial selection
+      await loadChart();
+    }
+
+    const grid = document.getElementById('stocksGrid');
+    grid.innerHTML = '';
+    (stocks || []).forEach(s => {
+      const up = Number(s.change_rate) > 0, down = Number(s.change_rate) < 0;
+      const border = up ? 'border-l-4 border-emerald-500' : (down ? 'border-l-4 border-rose-500' : 'border');
+      const tone = up ? 'text-emerald-600' : (down ? 'text-rose-600' : 'text-slate-600');
+      grid.insertAdjacentHTML('beforeend', `
+        <div class="bg-white rounded-xl shadow-sm ${border} p-4">
+          <div class="flex items-start justify-between">
+            <div>
+              <div class="font-semibold">${s.name}</div>
+              <div class="text-xs text-slate-500">${s.ticker}</div>
+            </div>
+            <div class="text-right">
+              <div class="font-bold text-lg">₩${Number(s.current_price).toLocaleString()}</div>
+              <div class="text-sm ${tone}">${Number(s.change_rate) > 0 ? '+' : ''}${Number(s.change_rate).toFixed(2)}%</div>
+            </div>
+          </div>
+          <div class="mt-2 flex items-center justify-between text-xs text-slate-500">
+            <div>기준가 ₩${Number(s.base_price).toLocaleString()}</div>
+            <div>거래량 ${Number(s.volume).toLocaleString()}</div>
+          </div>
+        </div>
+      `);
+    });
+  } catch (e) {}
+}
+
+async function loadChart() {
+  const skeleton = document.getElementById('chartSkeleton');
+  skeleton.style.display = 'block';
+  try {
+    const ticker = document.getElementById('chartTicker').value;
+    if (!ticker) { skeleton.style.display = 'none'; return; }
+    const data = await fetchJSON(`/api/stocks/chart/?ticker=${ticker}`);
+    if (!data.success) { skeleton.style.display = 'none'; return; }
+    const labels = (data.data.chart_data || []).map(i => new Date(i.timestamp).toLocaleTimeString('ko-KR', {hour:'2-digit', minute:'2-digit'}));
+    const series = (data.data.chart_data || []).map(i => i.price);
+    const ctx = document.getElementById('rtPriceChart').getContext('2d');
+    if (!chartRef) {
+      chartRef = new Chart(ctx, { type: 'line', data: { labels, datasets: [{ label: `${data.data.name} 주가`, data: series, borderColor:'#3b82f6', backgroundColor:'rgba(59,130,246,0.1)', tension:0.3, fill:true }] }, options: { responsive:true, maintainAspectRatio:false, animation:false, scales:{ y:{ ticks:{ callback:(v)=>'₩'+Number(v).toLocaleString() } } } } });
+    } else {
+      chartRef.data.labels = labels;
+      chartRef.data.datasets[0].label = `${data.data.name} 주가`;
+      chartRef.data.datasets[0].data = series;
+      chartRef.update('none'); // no animation to reduce flicker
+    }
+  } catch (e) { /* ignore */ }
+  finally { skeleton.style.display = 'none'; }
+}
+
+async function startBackground() { try { await fetch('/api/admin/background-simulation/start/', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({}) }); checkStatus(); loadRealtimeStocks(); } catch (e) {} }
+async function stopBackground() { try { await fetch('/api/admin/background-simulation/stop/', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({}) }); checkStatus(); } catch (e) {} }
+
+addEventListener('DOMContentLoaded', () => {
+  // Clear possible previous intervals on HMR
+  if (stocksIntervalId) clearInterval(stocksIntervalId);
+
+  checkStatus();
+  loadRealtimeStocks(); // chart loads after first stock list
+
+  // Only the stock grid auto-refreshes; chart updates on selection/refresh only
+  stocksIntervalId = setInterval(loadRealtimeStocks, 5000);
+
+  document.getElementById('chartTicker').addEventListener('change', loadChart);
+  document.getElementById('refreshBtn').addEventListener('click', () => { loadChart(); });
+  document.getElementById('startBtn').addEventListener('click', startBackground);
+  document.getElementById('stopBtn').addEventListener('click', stopBackground);
+});
+</script>
+{% endblock %}

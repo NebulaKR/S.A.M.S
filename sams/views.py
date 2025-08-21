@@ -728,3 +728,202 @@ def get_portfolio_data(request):
         })
     except Exception as e:
         return JsonResponse({'success': False, 'message': f'포트폴리오 데이터 조회 중 오류가 발생했습니다: {str(e)}'})
+
+# 백그라운드 시뮬레이션 제어 API들
+@login_required
+def start_background_simulation(request):
+    """백그라운드 시뮬레이션 시작 API"""
+    if not request.user.is_staff:
+        return JsonResponse({'success': False, 'message': '관리자 권한이 필요합니다.'})
+    
+    try:
+        result = SimulationService.start_background_simulation()
+        return JsonResponse(result)
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'message': f'백그라운드 시뮬레이션 시작 실패: {str(e)}'
+        })
+
+@login_required
+def stop_background_simulation(request):
+    """백그라운드 시뮬레이션 정지 API"""
+    if not request.user.is_staff:
+        return JsonResponse({'success': False, 'message': '관리자 권한이 필요합니다.'})
+    
+    try:
+        result = SimulationService.stop_background_simulation()
+        return JsonResponse(result)
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'message': f'백그라운드 시뮬레이션 정지 실패: {str(e)}'
+        })
+
+@login_required
+def get_background_simulation_status(request):
+    """백그라운드 시뮬레이션 상태 조회 API"""
+    try:
+        status = SimulationService.get_background_simulation_status()
+        if status is None:
+            return JsonResponse({
+                'success': False,
+                'message': '백그라운드 시뮬레이션이 실행 중이 아닙니다.'
+            })
+        
+        return JsonResponse({
+            'success': True,
+            'data': status
+        })
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'message': f'상태 조회 실패: {str(e)}'
+        })
+
+# Firebase에서 실시간 주가 데이터를 가져오는 API들
+@login_required
+def get_realtime_stock_data(request):
+    """Firebase에서 실시간 주가 데이터 조회"""
+    try:
+        from utils.logger import get_recent_market_snapshots
+        
+        # 최근 시장 스냅샷 조회
+        snapshots = get_recent_market_snapshots("background-sim", limit=10)
+        
+        if not snapshots:
+            return JsonResponse({
+                'success': False,
+                'message': '주가 데이터를 찾을 수 없습니다.'
+            })
+        
+        # 최신 스냅샷의 주가 데이터
+        latest_snapshot = snapshots[0]
+        stocks_data = latest_snapshot.get('stocks', {})
+        
+        # 주가 변화율 계산
+        formatted_stocks = []
+        for ticker, stock_data in stocks_data.items():
+            base_price = stock_data.get('base_price', stock_data['price'])
+            current_price = stock_data['price']
+            change_rate = ((current_price - base_price) / base_price) * 100
+            
+            formatted_stocks.append({
+                'ticker': ticker,
+                'name': get_stock_name(ticker),
+                'current_price': current_price,
+                'base_price': base_price,
+                'change_rate': round(change_rate, 2),
+                'volume': stock_data.get('volume', 0),
+                'timestamp': latest_snapshot.get('simulation_time', '')
+            })
+        
+        return JsonResponse({
+            'success': True,
+            'data': {
+                'stocks': formatted_stocks,
+                'last_update': latest_snapshot.get('created_at', ''),
+                'simulation_time': latest_snapshot.get('simulation_time', '')
+            }
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'message': f'주가 데이터 조회 실패: {str(e)}'
+        })
+
+def get_stock_name(ticker):
+    """종목 코드로 종목명 반환"""
+    stock_names = {
+        # 반도체/IT
+        '005930': '삼성전자',
+        '000660': 'SK하이닉스',
+        '011070': 'LG이노텍',
+        '035420': 'NAVER',
+        '035720': '카카오',
+        # 자동차
+        '005380': '현대차',
+        '005490': '기아',
+        # 화학/배터리
+        '051910': 'LG화학',
+        '006400': '삼성SDI',
+        '373220': 'LG에너지솔루션',
+        '096770': 'SK이노베이션',
+        # 금융
+        '055550': '신한지주',
+        '086790': '하나금융지주',
+        '105560': 'KB금융',
+        '138930': 'BNK금융지주',
+        '323410': '카카오뱅크',
+        # 건설/조선
+        '028260': '삼성물산',
+        '009540': '현대중공업',
+        '010140': '삼성중공업',
+        # 통신/전력
+        '017670': 'SK텔레콤',
+        '030200': 'KT',
+        '015760': '한국전력',
+        # 바이오/식품
+        '068270': '셀트리온',
+        '207940': '삼성바이오로직스',
+        '097950': 'CJ제일제당',
+    }
+    return stock_names.get(ticker, ticker)
+
+@login_required
+def get_stock_chart_data(request):
+    """특정 종목의 차트 데이터 조회 (Firebase에서)"""
+    try:
+        ticker = request.GET.get('ticker', '005930')
+        limit = int(request.GET.get('limit', 50))
+        
+        from utils.logger import get_recent_market_snapshots
+        
+        # 최근 시장 스냅샷들 조회
+        snapshots = get_recent_market_snapshots("background-sim", limit=limit)
+        
+        if not snapshots:
+            return JsonResponse({
+                'success': False,
+                'message': '차트 데이터를 찾을 수 없습니다.'
+            })
+        
+        # 시간순으로 정렬
+        snapshots.sort(key=lambda x: x.get('created_at', ''))
+        
+        # 차트 데이터 포맷팅
+        chart_data = []
+        for snapshot in snapshots:
+            stocks = snapshot.get('stocks', {})
+            if ticker in stocks:
+                stock_data = stocks[ticker]
+                chart_data.append({
+                    'timestamp': snapshot.get('created_at', ''),
+                    'price': stock_data['price'],
+                    'volume': stock_data.get('volume', 0),
+                    'change_rate': stock_data.get('change_rate', 0)
+                })
+        
+        return JsonResponse({
+            'success': True,
+            'data': {
+                'ticker': ticker,
+                'name': get_stock_name(ticker),
+                'chart_data': chart_data
+            }
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'message': f'차트 데이터 조회 실패: {str(e)}'
+        })
+
+@login_required
+def realtime_dashboard(request):
+    """실시간 주가 대시보드"""
+    context = {
+        'realtime_active': True,
+    }
+    return render(request, 'app/realtime_dashboard.html', context)

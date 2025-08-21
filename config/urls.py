@@ -29,6 +29,7 @@ urlpatterns = [
     path('admin/', sams_views.admin_dashboard, name='admin'),
     path('portfolio/', sams_views.portfolio_dashboard, name='portfolio'),
     path('trading/', sams_views.trading_view, name='trading'),
+    path('realtime/', sams_views.realtime_dashboard, name='realtime'),
 
     # 기존 API endpoints
     path('api/portfolio/buy/', sams_views.buy_stock, name='api_buy_stock'),
@@ -55,6 +56,15 @@ urlpatterns = [
     path('api/admin/simulation/status/', sams_views.get_simulation_control_status, name='api_simulation_control_status'),
     path('api/admin/simulation/logs/', sams_views.get_simulation_logs, name='api_simulation_logs'),
     path('api/admin/simulation/settings/', sams_views.update_simulation_settings, name='api_update_simulation_settings'),
+    
+    # 백그라운드 시뮬레이션 제어 API 엔드포인트들
+    path('api/admin/background-simulation/start/', sams_views.start_background_simulation, name='api_start_background_simulation'),
+    path('api/admin/background-simulation/stop/', sams_views.stop_background_simulation, name='api_stop_background_simulation'),
+    path('api/admin/background-simulation/status/', sams_views.get_background_simulation_status, name='api_background_simulation_status'),
+    
+    # 실시간 주가 데이터 API 엔드포인트들
+    path('api/stocks/realtime/', sams_views.get_realtime_stock_data, name='api_realtime_stock_data'),
+    path('api/stocks/chart/', sams_views.get_stock_chart_data, name='api_stock_chart_data'),
 
     path('login/', LoginView.as_view(template_name='accounts/login.html'), name='login'),
     path('logout/', LogoutView.as_view(), name='logout'),
