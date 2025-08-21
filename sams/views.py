@@ -515,7 +515,7 @@ def get_event_detail(request):
 def get_news_feed(request):
     """뉴스 피드 조회 API"""
     try:
-        sim_id = request.GET.get('simulation_id', 'default-sim')
+        sim_id = request.GET.get('simulation_id', 'background-sim')
         limit = int(request.GET.get('limit', 20))
         media_filter = request.GET.get('media')  # 특정 언론사 필터
         
@@ -813,6 +813,25 @@ def get_background_simulation_status(request):
             'success': False,
             'message': f'상태 조회 실패: {str(e)}'
         })
+
+@login_required
+def update_background_parameters(request):
+    """백그라운드 시뮬레이션 파라미터 업데이트 API (다음 틱부터 반영)"""
+    if not request.user.is_staff:
+        return JsonResponse({'success': False, 'message': '관리자 권한이 필요합니다.'})
+    try:
+        body = json.loads(request.body) if request.body else {}
+        media_bias_scale = body.get('media_bias_scale')
+        media_credibility_scale = body.get('media_credibility_scale')
+        price_volatility_scale = body.get('price_volatility_scale')
+        result = SimulationService.update_background_settings(
+            media_bias_scale=media_bias_scale,
+            media_credibility_scale=media_credibility_scale,
+            price_volatility_scale=price_volatility_scale,
+        )
+        return JsonResponse(result)
+    except Exception as e:
+        return JsonResponse({'success': False, 'message': f'설정 업데이트 실패: {str(e)}'})
 
 # Firebase에서 실시간 주가 데이터를 가져오는 API들
 @login_required

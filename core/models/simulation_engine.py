@@ -109,6 +109,8 @@ class SimulationEngine:
         
         # 뉴스 생성 설정
         self._news_generation_enabled = True  # 뉴스 기사 생성 활성화 여부
+        # 관리자 제어용: 주가 변동폭 스케일 (다음 틱부터 반영)
+        self.price_volatility_scale: float = 1.0
         
         # 콜백 함수들
         self.on_price_change = None
@@ -433,9 +435,15 @@ class SimulationEngine:
                 weights = self.coach.adjust_weights()
                 
                 # 메인 모델을 통한 주가 변화 계산
+                # 관리자에서 조정된 언론 신뢰도 스케일을 market_params.news.credibility에 반영했으므로 사용
+                try:
+                    news_cfg = self.market_params.get("news", {})
+                    media_cred = float(news_cfg.get("credibility", 0.8))
+                except Exception:
+                    media_cred = 0.8
                 event_data = {
                     "news_impact": total_impact,
-                    "media_credibility": 0.8
+                    "media_credibility": media_cred
                 }
                 
                 result = main_model(
@@ -445,10 +453,11 @@ class SimulationEngine:
                     base_price=stock_data["price"]
                 )
                 
-                # 주가 업데이트
+                # 주가 업데이트 (변동폭 스케일 적용)
                 old_price = stock_data["price"]
-                new_price = result["price"]
-                change_rate = result["delta"]
+                base_delta = result["delta"]
+                change_rate = base_delta * max(0.0, float(getattr(self, "price_volatility_scale", 1.0)))
+                new_price = round(old_price * (1.0 + change_rate), 2)
                 
                 print(f"[DEBUG] {ticker}: {old_price:.0f} → {new_price:.0f} (변동률: {change_rate*100:+.2f}%)")
                 
