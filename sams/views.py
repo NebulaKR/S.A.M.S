@@ -105,6 +105,26 @@ def start_simulation(request):
         })
 
 @login_required
+def pause_simulation(request):
+    """시뮬레이션 일시정지 API"""
+    if not request.user.is_staff:
+        return JsonResponse({'success': False, 'message': '관리자 권한이 필요합니다.'})
+    
+    try:
+        data = json.loads(request.body) if request.body else {}
+        sim_id = data.get('simulation_id', 'default-sim')
+        
+        # 시뮬레이션 서비스를 통한 일시정지
+        result = SimulationService.pause_simulation(sim_id)
+        
+        return JsonResponse(result)
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'message': f'시뮬레이션 일시정지 실패: {str(e)}'
+        })
+
+@login_required
 def stop_simulation(request):
     """시뮬레이션 정지 API"""
     if not request.user.is_staff:

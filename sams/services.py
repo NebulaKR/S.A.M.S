@@ -17,10 +17,23 @@ class PortfolioService:
         """사용자의 포트폴리오 요약 정보를 반환합니다."""
         try:
             portfolio = Portfolio.objects.get(user=user)
-            positions = portfolio.positions.all()
+            positions = portfolio.positions.all().select_related('stock')
             
             total_stock_value = sum(position.current_value for position in positions)
             total_value = portfolio.current_balance + total_stock_value
+            
+            # 포지션 정보 포함
+            positions_data = [{
+                'ticker': position.stock.ticker,
+                'name': position.stock.name,
+                'quantity': position.quantity,
+                'average_price': float(position.average_price),
+                'current_price': float(position.stock.current_price),
+                'current_value': float(position.current_value),
+                'unrealized_pnl': float(position.unrealized_pnl),
+                'unrealized_pnl_percent': float(position.unrealized_pnl_percent),
+                'weight': float((position.current_value / total_value * 100) if total_value > 0 else 0)
+            } for position in positions]
             
             return {
                 'total_value': float(total_value),
@@ -28,7 +41,7 @@ class PortfolioService:
                 'stock_value': float(total_stock_value),
                 'total_return': float(portfolio.total_return),
                 'cash_ratio': float(portfolio.cash_ratio),
-                'positions': []
+                'positions': positions_data
             }
         except Portfolio.DoesNotExist:
             return {
@@ -49,6 +62,7 @@ class PortfolioService:
                 portfolio, created = Portfolio.objects.get_or_create(user=user)
                 
                 total_cost = price * quantity
+                balance_before = portfolio.current_balance
                 
                 if portfolio.current_balance < total_cost:
                     return {'success': False, 'message': '잔액이 부족합니다.'}
@@ -74,6 +88,19 @@ class PortfolioService:
                 position.save()
                 portfolio.current_balance -= total_cost
                 portfolio.save()
+                
+                # 거래 내역 저장
+                from .models import Transaction
+                Transaction.objects.create(
+                    portfolio=portfolio,
+                    transaction_type='BUY',
+                    stock=stock,
+                    quantity=quantity,
+                    price=price,
+                    amount=total_cost,
+                    balance_before=balance_before,
+                    balance_after=portfolio.current_balance
+                )
             
             return {
                 'success': True,
@@ -105,6 +132,7 @@ class PortfolioService:
                 
                 total_revenue = price * quantity
                 realized_pnl = (price - position.average_price) * quantity
+                balance_before = portfolio.current_balance
                 
                 # 포지션 업데이트
                 position.quantity -= quantity
@@ -115,6 +143,19 @@ class PortfolioService:
                 
                 portfolio.current_balance += total_revenue
                 portfolio.save()
+                
+                # 거래 내역 저장
+                from .models import Transaction
+                Transaction.objects.create(
+                    portfolio=portfolio,
+                    transaction_type='SELL',
+                    stock=stock,
+                    quantity=quantity,
+                    price=price,
+                    amount=total_revenue,
+                    balance_before=balance_before,
+                    balance_after=portfolio.current_balance
+                )
             
             return {
                 'success': True,
@@ -281,8 +322,18 @@ class SimulationService:
     def start_simulation(cls, simulation_id, settings):
         """시뮬레이션 시작"""
         try:
+            # 기존 시뮬레이션이 실행 중인지 확인
             if simulation_id in cls._active_simulations:
-                return {'success': False, 'message': f'시뮬레이션 {simulation_id}가 이미 실행 중입니다.'}
+                current_status = cls._active_simulations[simulation_id]['status']
+                if current_status in ['running', 'starting']:
+                    return {'success': False, 'message': f'시뮬레이션 {simulation_id}가 이미 실행 중입니다.'}
+                elif current_status == 'paused':
+                    # 일시정지된 상태라면 재개
+                    cls._active_simulations[simulation_id]['status'] = 'running'
+                    return {'success': True, 'message': f'시뮬레이션 {simulation_id}가 재개되었습니다.'}
+                elif current_status in ['stopped', 'error']:
+                    # 정지된 상태라면 기존 데이터 정리 후 새로 시작
+                    del cls._active_simulations[simulation_id]
             
             # 시뮬레이션 데이터 초기화
             cls._active_simulations[simulation_id] = {
@@ -290,7 +341,9 @@ class SimulationService:
                 'start_time': datetime.now(),
                 'total_events': 0,
                 'total_news': 0,
-                'last_event_time': None
+                'last_event_time': None,
+                'thread': None,
+                'engine': None
             }
             
             # 별도 스레드에서 시뮬레이션 실행
@@ -301,11 +354,33 @@ class SimulationService:
             )
             thread.start()
             
+            # 스레드 참조 저장
+            cls._active_simulations[simulation_id]['thread'] = thread
+            
             return {'success': True, 'message': f'시뮬레이션 {simulation_id}가 시작되었습니다.'}
             
         except Exception as e:
             return {'success': False, 'message': f'시뮬레이션 시작 실패: {str(e)}'}
     
+    @classmethod
+    def pause_simulation(cls, simulation_id):
+        """시뮬레이션 일시정지"""
+        try:
+            if simulation_id not in cls._active_simulations:
+                return {'success': False, 'message': f'시뮬레이션 {simulation_id}가 실행 중이 아닙니다.'}
+            
+            current_status = cls._active_simulations[simulation_id]['status']
+            if current_status == 'running':
+                cls._active_simulations[simulation_id]['status'] = 'paused'
+                return {'success': True, 'message': f'시뮬레이션 {simulation_id}가 일시정지되었습니다.'}
+            elif current_status == 'paused':
+                return {'success': False, 'message': f'시뮬레이션 {simulation_id}가 이미 일시정지 상태입니다.'}
+            else:
+                return {'success': False, 'message': f'시뮬레이션 {simulation_id}가 실행 중이 아닙니다.'}
+            
+        except Exception as e:
+            return {'success': False, 'message': f'시뮬레이션 일시정지 실패: {str(e)}'}
+
     @classmethod
     def stop_simulation(cls, simulation_id):
         """시뮬레이션 정지"""
@@ -313,8 +388,20 @@ class SimulationService:
             if simulation_id not in cls._active_simulations:
                 return {'success': False, 'message': f'시뮬레이션 {simulation_id}가 실행 중이 아닙니다.'}
             
-            cls._active_simulations[simulation_id]['status'] = 'stopping'
-            return {'success': True, 'message': f'시뮬레이션 {simulation_id} 정지 요청됨'}
+            current_status = cls._active_simulations[simulation_id]['status']
+            if current_status in ['running', 'paused', 'starting']:
+                cls._active_simulations[simulation_id]['status'] = 'stopping'
+                
+                # 시뮬레이션 엔진 정지
+                if cls._active_simulations[simulation_id].get('engine'):
+                    try:
+                        cls._active_simulations[simulation_id]['engine'].stop()
+                    except:
+                        pass
+                
+                return {'success': True, 'message': f'시뮬레이션 {simulation_id} 정지 요청됨'}
+            else:
+                return {'success': False, 'message': f'시뮬레이션 {simulation_id}가 실행 중이 아닙니다.'}
             
         except Exception as e:
             return {'success': False, 'message': f'시뮬레이션 정지 실패: {str(e)}'}
@@ -399,17 +486,46 @@ class SimulationService:
             engine.add_callback("news_update", on_news_update)
             
             # 시뮬레이션 루프
-            while cls._active_simulations[simulation_id]['status'] == 'running':
-                engine.update()
-                time.sleep(settings['event_generation_interval'])
+            print(f"시뮬레이션 루프 시작 - 이벤트 간격: {settings.get('event_generation_interval', 30)}초")
+            
+            # 엔진 참조 저장
+            cls._active_simulations[simulation_id]['engine'] = engine
+            
+            while cls._active_simulations[simulation_id]['status'] in ['running', 'paused']:
+                current_status = cls._active_simulations[simulation_id]['status']
                 
-                # 시간당 최대 이벤트 수 체크
-                if cls._active_simulations[simulation_id]['total_events'] >= settings['max_events_per_hour']:
-                    time.sleep(3600)  # 1시간 대기
-                    cls._active_simulations[simulation_id]['total_events'] = 0
+                if current_status == 'running':
+                    engine.update()
+                    
+                    # 이벤트 생성 간격을 더 짧게 설정 (테스트용)
+                    sleep_interval = min(settings.get('event_generation_interval', 30), 10)  # 최대 10초
+                    print(f"시뮬레이션 업데이트 완료, {sleep_interval}초 대기...")
+                    
+                    # 대기 중에도 상태 변경 확인
+                    for i in range(sleep_interval):
+                        if cls._active_simulations[simulation_id]['status'] not in ['running', 'paused']:
+                            break
+                        time.sleep(1)
+                    
+                    # 시간당 최대 이벤트 수 체크
+                    if cls._active_simulations[simulation_id]['total_events'] >= settings.get('max_events_per_hour', 10):
+                        print(f"시간당 최대 이벤트 수 도달 ({settings.get('max_events_per_hour', 10)}개), 1시간 대기")
+                        time.sleep(3600)  # 1시간 대기
+                        cls._active_simulations[simulation_id]['total_events'] = 0
+                
+                elif current_status == 'paused':
+                    print("시뮬레이션 일시정지 중...")
+                    time.sleep(1)  # 1초마다 상태 확인
+                    continue
+                
+                # 정지 요청 확인
+                if cls._active_simulations[simulation_id]['status'] == 'stopping':
+                    break
             
             # 시뮬레이션 종료
-            cls._active_simulations[simulation_id]['status'] = 'stopped'
+            final_status = 'stopped' if cls._active_simulations[simulation_id]['status'] == 'stopping' else 'error'
+            cls._active_simulations[simulation_id]['status'] = final_status
+            print(f"시뮬레이션 {simulation_id} 종료 - 상태: {final_status}")
             
         except Exception as e:
             cls._active_simulations[simulation_id]['status'] = 'error'

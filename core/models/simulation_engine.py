@@ -101,7 +101,7 @@ class SimulationEngine:
         self.news_history: List[News] = []
         
         # 시뮬레이션 설정
-        self.event_generation_interval = 300  # 5분마다 이벤트 생성
+        self.event_generation_interval = 10  # 10초마다 이벤트 생성 (테스트용)
         self.last_event_generation = 0
         
         # 언론사 설정
@@ -442,6 +442,19 @@ class SimulationEngine:
                 
                 stock_data["price"] = new_price
                 stock_data["change_rate"] = change_rate
+                
+                # Django 데이터베이스의 Stock 모델 업데이트
+                try:
+                    from django.db import connection
+                    if connection.connection is not None:
+                        from sams.models import Stock
+                        stock_obj = Stock.objects.filter(ticker=ticker).first()
+                        if stock_obj:
+                            stock_obj.current_price = new_price
+                            stock_obj.save()
+                            print(f"[DB] {ticker} 주가 업데이트: {old_price:.0f} → {new_price:.0f}")
+                except Exception as e:
+                    print(f"[DB] 주가 업데이트 실패 ({ticker}): {e}")
                 
                 # 콜백 호출
                 if self.on_price_change:

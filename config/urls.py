@@ -50,6 +50,7 @@ urlpatterns = [
 
     # 관리자 시뮬레이션 제어 API 엔드포인트들
     path('api/admin/simulation/start/', sams_views.start_simulation, name='api_start_simulation'),
+    path('api/admin/simulation/pause/', sams_views.pause_simulation, name='api_pause_simulation'),
     path('api/admin/simulation/stop/', sams_views.stop_simulation, name='api_stop_simulation'),
     path('api/admin/simulation/status/', sams_views.get_simulation_control_status, name='api_simulation_control_status'),
     path('api/admin/simulation/logs/', sams_views.get_simulation_logs, name='api_simulation_logs'),

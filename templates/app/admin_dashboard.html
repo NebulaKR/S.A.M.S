@@ -771,6 +771,34 @@ async function startSimulation() {
     }
 }
 
+// 시뮬레이션 일시정지
+async function pauseSimulation() {
+    try {
+        const response = await fetch('/api/admin/simulation/pause/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCookie('csrftoken')
+            },
+            body: JSON.stringify({
+                simulation_id: currentSimulationId
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            showNotification('시뮬레이션이 일시정지되었습니다.', 'success');
+            fetchSimulationStatus();
+        } else {
+            showNotification(data.message, 'error');
+        }
+    } catch (error) {
+        console.error('시뮬레이션 일시정지 실패:', error);
+        showNotification('시뮬레이션 일시정지에 실패했습니다.', 'error');
+    }
+}
+
 // 시뮬레이션 정지
 async function stopSimulation() {
     try {
@@ -964,6 +992,7 @@ function getCookie(name) {
 
 // 이벤트 리스너
 document.getElementById('startBtn').addEventListener('click', startSimulation);
+document.getElementById('pauseBtn').addEventListener('click', pauseSimulation);
 document.getElementById('stopBtn').addEventListener('click', stopSimulation);
 document.getElementById('refreshLogsBtn').addEventListener('click', fetchLogs);
 document.getElementById('saveSettingsBtn').addEventListener('click', saveSettings);
