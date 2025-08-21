@@ -16,7 +16,10 @@ from utils.logger import (
     list_event_logs, 
     get_news_articles_for_event, 
     get_event_log,
-    get_recent_events_for_context
+    get_recent_events_for_context,
+    get_all_events_across_simulations,
+    get_all_news_across_simulations,
+    get_database_statistics
 )
 
 def landing(request):
@@ -849,30 +852,39 @@ def update_background_parameters(request):
 # Firebase에서 실시간 주가 데이터를 가져오는 API들
 @login_required
 def get_realtime_stock_data(request):
-    """Firebase에서 실시간 주가 데이터 조회"""
+    """Firebase에서 실시간 주가 데이터 조회 (simulation_id 선택 가능, 없으면 자동 폴백)"""
     try:
         from utils.logger import get_recent_market_snapshots
         
-        # 최근 시장 스냅샷 조회
-        snapshots = get_recent_market_snapshots("background-sim", limit=10)
+        # 우선순위: ?simulation_id= → background-sim → default-sim
+        candidates = []
+        sim_q = request.GET.get('simulation_id')
+        if sim_q:
+            candidates.append(sim_q)
+        candidates.extend(["background-sim", "default-sim"])  # 중복 허용 후 아래에서 처리
+        
+        snapshots = []
+        used_sim_id = None
+        for sim_id_try in candidates:
+            if sim_id_try == used_sim_id:
+                continue
+            s = get_recent_market_snapshots(sim_id_try, limit=10)
+            if s:
+                snapshots = s
+                used_sim_id = sim_id_try
+                break
         
         if not snapshots:
-            return JsonResponse({
-                'success': False,
-                'message': '주가 데이터를 찾을 수 없습니다.'
-            })
+            return JsonResponse({'success': False, 'message': '주가 데이터를 찾을 수 없습니다.'})
         
-        # 최신 스냅샷의 주가 데이터
         latest_snapshot = snapshots[0]
         stocks_data = latest_snapshot.get('stocks', {})
         
-        # 주가 변화율 계산
         formatted_stocks = []
         for ticker, stock_data in stocks_data.items():
             base_price = stock_data.get('base_price', stock_data['price'])
             current_price = stock_data['price']
             change_rate = ((current_price - base_price) / base_price) * 100
-            
             formatted_stocks.append({
                 'ticker': ticker,
                 'name': get_stock_name(ticker),
@@ -880,7 +892,7 @@ def get_realtime_stock_data(request):
                 'base_price': base_price,
                 'change_rate': round(change_rate, 2),
                 'volume': stock_data.get('volume', 0),
-                'timestamp': latest_snapshot.get('simulation_time', '')
+                'timestamp': latest_snapshot.get('simulation_time', ''),
             })
         
         return JsonResponse({
@@ -888,15 +900,12 @@ def get_realtime_stock_data(request):
             'data': {
                 'stocks': formatted_stocks,
                 'last_update': latest_snapshot.get('created_at', ''),
-                'simulation_time': latest_snapshot.get('simulation_time', '')
+                'simulation_time': latest_snapshot.get('simulation_time', ''),
+                'simulation_id': used_sim_id,
             }
         })
-        
     except Exception as e:
-        return JsonResponse({
-            'success': False,
-            'message': f'주가 데이터 조회 실패: {str(e)}'
-        })
+        return JsonResponse({'success': False, 'message': f'주가 데이터 조회 실패: {str(e)}'})
 
 def get_stock_name(ticker):
     """종목 코드로 종목명 반환"""
@@ -938,26 +947,33 @@ def get_stock_name(ticker):
 
 @login_required
 def get_stock_chart_data(request):
-    """특정 종목의 차트 데이터 조회 (Firebase에서)"""
+    """특정 종목의 차트 데이터 조회 (Firebase에서) - simulation_id 선택 가능"""
     try:
         ticker = request.GET.get('ticker', '005930')
         limit = int(request.GET.get('limit', 50))
+        sim_q = request.GET.get('simulation_id')
         
         from utils.logger import get_recent_market_snapshots
         
-        # 최근 시장 스냅샷들 조회
-        snapshots = get_recent_market_snapshots("background-sim", limit=limit)
+        candidates = []
+        if sim_q:
+            candidates.append(sim_q)
+        candidates.extend(["background-sim", "default-sim"])  # 우선순위 폴백
+        snapshots = []
+        used_sim_id = None
+        for sim_id_try in candidates:
+            if sim_id_try == used_sim_id:
+                continue
+            s = get_recent_market_snapshots(sim_id_try, limit=limit)
+            if s:
+                snapshots = s
+                used_sim_id = sim_id_try
+                break
         
         if not snapshots:
-            return JsonResponse({
-                'success': False,
-                'message': '차트 데이터를 찾을 수 없습니다.'
-            })
+            return JsonResponse({'success': False, 'message': '차트 데이터를 찾을 수 없습니다.'})
         
-        # 시간순으로 정렬
         snapshots.sort(key=lambda x: x.get('created_at', ''))
-        
-        # 차트 데이터 포맷팅
         chart_data = []
         for snapshot in snapshots:
             stocks = snapshot.get('stocks', {})
@@ -975,15 +991,12 @@ def get_stock_chart_data(request):
             'data': {
                 'ticker': ticker,
                 'name': get_stock_name(ticker),
-                'chart_data': chart_data
+                'chart_data': chart_data,
+                'simulation_id': used_sim_id,
             }
         })
-        
     except Exception as e:
-        return JsonResponse({
-            'success': False,
-            'message': f'차트 데이터 조회 실패: {str(e)}'
-        })
+        return JsonResponse({'success': False, 'message': f'차트 데이터 조회 실패: {str(e)}'})
 
 @login_required
 def realtime_dashboard(request):
@@ -992,3 +1005,18 @@ def realtime_dashboard(request):
         'realtime_active': True,
     }
     return render(request, 'app/realtime_dashboard.html', context)
+
+@login_required
+def get_admin_statistics(request):
+    """관리자 대시보드에서 전체 데이터베이스 통계를 조회하는 API"""
+    try:
+        stats = get_database_statistics()
+        return JsonResponse({
+            'success': True,
+            'data': stats
+        })
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'message': f'데이터베이스 통계 조회 실패: {str(e)}'
+        })

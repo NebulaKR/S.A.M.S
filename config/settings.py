@@ -22,21 +22,35 @@ load_dotenv(BASE_DIR / ".env")
 FIREBASE_PROJECT_ID = os.getenv("FIREBASE_PROJECT_ID")
 FIREBASE_CREDENTIALS_PATH = os.getenv("FIREBASE_CREDENTIALS_PATH")
 
-# Firebase 초기화
-FIREBASE_CREDENTIALS_PATH = str(BASE_DIR / "firebase-credentials.json")
+# Firebase 초기화 - secrets 폴더에서 자격 증명 파일 찾기
+firebase_credential_candidates = [
+    BASE_DIR / "secrets" / "sams-295be-firebase-adminsdk-fbsvc-768b33733b.json"
+]
 
-if os.path.exists(FIREBASE_CREDENTIALS_PATH):
-    try:
-        cred = credentials.Certificate(FIREBASE_CREDENTIALS_PATH)
-        if not firebase_admin._apps:
-            firebase_admin.initialize_app(cred, {"projectId": "sams-e1b60"})
-            print("Firebase 초기화 성공!")
-    except Exception as e:
-        print(f"Firebase 초기화 실패 (개발 모드): {e}")
-        pass
-else:
-    print(f"Firebase 자격 증명 파일을 찾을 수 없습니다: {FIREBASE_CREDENTIALS_PATH}")
-    pass
+firebase_initialized = False
+for credential_path in firebase_credential_candidates:
+    if os.path.exists(credential_path):
+        try:
+            cred = credentials.Certificate(str(credential_path))
+            if not firebase_admin._apps:
+                # 파일명에서 프로젝트 ID 추출
+                if "sams-295be" in str(credential_path):
+                    project_id = "sams-295be"
+                elif "sams-e1b60" in str(credential_path):
+                    project_id = "sams-e1b60"
+                else:
+                    project_id = "sams-295be"  # 기본값
+                
+                firebase_admin.initialize_app(cred, {"projectId": project_id})
+                print(f"✅ Firebase 초기화 성공! ({credential_path.name})")
+                firebase_initialized = True
+                break
+        except Exception as e:
+            print(f"❌ Firebase 초기화 실패 ({credential_path.name}): {e}")
+            continue
+
+if not firebase_initialized:
+    print("⚠️ Firebase 자격 증명 파일을 찾을 수 없습니다. 개발 모드로 실행됩니다.")
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -68,7 +82,7 @@ INSTALLED_APPS = [
 
 
 MIDDLEWARE = [
-    'corsheaders.middleware.CorsMiddleware',
+    'corsheaders.middleware.CorsMiddleware',  # CORS 지원
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -156,7 +170,11 @@ USE_TZ = False
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/5.2/howto/static-files/
 
-STATIC_URL = 'static/'
+STATIC_URL = '/static/'
+STATIC_ROOT = BASE_DIR / 'static'
+
+# 개발 환경에서는 기본 Django 정적 파일 서빙 사용
+# 프로덕션 배포 시에만 whitenoise 사용
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field

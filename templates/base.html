@@ -4,7 +4,13 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>{% block title %}SAMS — 모의자산투자시뮬레이션{% endblock %}</title>
+  <!-- 개발 환경에서만 사용 (프로덕션에서는 Tailwind CSS를 설치하여 사용) -->
   <script src="https://cdn.tailwindcss.com"></script>
+  <!-- 
+  프로덕션 환경에서는 다음 명령어로 Tailwind CSS를 설치하세요:
+  npm install -D tailwindcss
+  npx tailwindcss init
+  -->
   <script>
     tailwind.config = {
       theme: {

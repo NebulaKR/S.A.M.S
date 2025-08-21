@@ -1,4 +1,7 @@
-secrets/
-.env
-ver1.zip
-firebase-credentials.json
+# Python bytecode
+__pycache__/
+
+# Python virtual environment
+venv/
+*.local
+secret.json

@@ -65,6 +65,9 @@ urlpatterns = [
     path('api/admin/background-simulation/status/', sams_views.get_background_simulation_status, name='api_background_simulation_status'),
     path('api/admin/background-simulation/update-params/', sams_views.update_background_parameters, name='api_update_background_parameters'),
 
+    # 관리자 통계 조회 API 엔드포인트
+    path('api/admin/statistics/', sams_views.get_admin_statistics, name='api_admin_statistics'),
+
     # 실시간 주가 데이터 API 엔드포인트들
     path('api/stocks/realtime/', sams_views.get_realtime_stock_data, name='api_realtime_stock_data'),
     path('api/stocks/chart/', sams_views.get_stock_chart_data, name='api_stock_chart_data'),

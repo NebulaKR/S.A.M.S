@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SAMS — 모의자산투자시뮬레이션</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .gradient-bg {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        .card-hover {
+            transition: all 0.3s ease;
+        }
+        .card-hover:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+        }
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #3498db;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body class="bg-gray-50">
+    <!-- 헤더 -->
+    <header class="gradient-bg text-white">
+        <div class="container mx-auto px-6 py-16">
+            <div class="text-center">
+                <h1 class="text-5xl font-bold mb-4">SAMS</h1>
+                <p class="text-xl text-blue-100 mb-8">모의자산투자시뮬레이션 시스템</p>
+                <div class="flex justify-center space-x-4">
+                    <button id="adminBtn" class="bg-white text-blue-600 px-6 py-3 rounded-lg font-semibold hover:bg-blue-50 transition-colors">
+                        🎮 관리자 대시보드
+                    </button>
+                    <button id="newsBtn" class="bg-blue-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-blue-700 transition-colors">
+                        📰 뉴스 대시보드
+                    </button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- 메인 콘텐츠 -->
+    <main class="container mx-auto px-6 py-16">
+        <!-- 특징 섹션 -->
+        <section class="mb-20">
+            <h2 class="text-3xl font-bold text-center text-gray-800 mb-12">주요 기능</h2>
+            <div class="grid md:grid-cols-3 gap-8">
+                <div class="bg-white p-8 rounded-xl shadow-lg card-hover">
+                    <div class="text-4xl mb-4">🤖</div>
+                    <h3 class="text-xl font-semibold mb-4">AI 기반 이벤트 생성</h3>
+                    <p class="text-gray-600">LLM을 활용한 현실적인 경제 이벤트와 뉴스 기사 자동 생성</p>
+                </div>
+                <div class="bg-white p-8 rounded-xl shadow-lg card-hover">
+                    <div class="text-4xl mb-4">📊</div>
+                    <h3 class="text-xl font-semibold mb-4">실시간 주가 시뮬레이션</h3>
+                    <p class="text-gray-600">이벤트와 뉴스에 따른 동적 주가 변동 시뮬레이션</p>
+                </div>
+                <div class="bg-white p-8 rounded-xl shadow-lg card-hover">
+                    <div class="text-4xl mb-4">🎯</div>
+                    <h3 class="text-xl font-semibold mb-4">시장 심리 모델링</h3>
+                    <p class="text-gray-600">대중 심리, 언론 성향, 기업 특성을 반영한 복합 시장 모델</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- 기술 스택 섹션 -->
+        <section class="mb-20">
+            <h2 class="text-3xl font-bold text-center text-gray-800 mb-12">기술 스택</h2>
+            <div class="grid md:grid-cols-4 gap-6">
+                <div class="bg-white p-6 rounded-lg shadow-md text-center">
+                    <div class="text-2xl mb-2">🐍</div>
+                    <h4 class="font-semibold">Python/Django</h4>
+                    <p class="text-sm text-gray-500">백엔드 프레임워크</p>
+                </div>
+                <div class="bg-white p-6 rounded-lg shadow-md text-center">
+                    <div class="text-2xl mb-2">🔥</div>
+                    <h4 class="font-semibold">Firebase</h4>
+                    <p class="text-sm text-gray-500">데이터베이스 & 호스팅</p>
+                </div>
+                <div class="bg-white p-6 rounded-lg shadow-md text-center">
+                    <div class="text-2xl mb-2">🧠</div>
+                    <h4 class="font-semibold">LLM</h4>
+                    <p class="text-sm text-gray-500">AI 모델 통합</p>
+                </div>
+                <div class="bg-white p-6 rounded-lg shadow-md text-center">
+                    <div class="text-2xl mb-2">⚡</div>
+                    <h4 class="font-semibold">Tailwind CSS</h4>
+                    <p class="text-sm text-gray-500">프론트엔드 스타일링</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- 시작하기 섹션 -->
+        <section class="text-center">
+            <h2 class="text-3xl font-bold text-gray-800 mb-8">지금 시작하세요</h2>
+            <p class="text-lg text-gray-600 mb-8">AI 기반 주식 시장 시뮬레이션으로 투자 전략을 테스트해보세요</p>
+            <div class="space-y-4">
+                <button id="startBtn" class="inline-block bg-blue-600 text-white px-8 py-4 rounded-lg font-semibold text-lg hover:bg-blue-700 transition-colors">
+                    🚀 시뮬레이션 시작하기
+                </button>
+                <p class="text-sm text-gray-500">관리자 권한이 필요합니다</p>
+            </div>
+        </section>
+
+        <!-- Django 앱 연결 상태 -->
+        <section class="mt-16 p-6 bg-blue-50 rounded-lg">
+            <h3 class="text-lg font-semibold text-blue-800 mb-4">🔗 Django 백엔드 연결 상태</h3>
+            <div id="connectionStatus" class="flex items-center space-x-3">
+                <div class="loading"></div>
+                <span class="text-blue-600">연결 확인 중...</span>
+            </div>
+            <p class="text-sm text-blue-600 mt-2">
+                이 페이지는 Firebase Hosting에서 제공되며, Django 백엔드와 연결됩니다.
+            </p>
+        </section>
+    </main>
+
+    <!-- 푸터 -->
+    <footer class="bg-gray-800 text-white py-12">
+        <div class="container mx-auto px-6 text-center">
+            <p class="text-gray-400">&copy; 2025 SAMS. All rights reserved.</p>
+            <p class="text-gray-500 text-sm mt-2">AI 기반 모의자산투자시뮬레이션 시스템</p>
+        </div>
+    </footer>
+
+    <script>
+        // Django 백엔드 연결 확인
+        async function checkDjangoConnection() {
+            try {
+                const response = await fetch('/api/admin/background-simulation/status/');
+                if (response.ok) {
+                    document.getElementById('connectionStatus').innerHTML = `
+                        <div class="w-4 h-4 bg-green-500 rounded-full"></div>
+                        <span class="text-green-600">✅ Django 백엔드 연결됨</span>
+                    `;
+                } else {
+                    throw new Error('API 응답 오류');
+                }
+            } catch (error) {
+                document.getElementById('connectionStatus').innerHTML = `
+                    <div class="w-4 h-4 bg-red-500 rounded-full"></div>
+                    <span class="text-red-600">❌ Django 백엔드 연결 실패</span>
+                `;
+                console.error('Django 연결 확인 실패:', error);
+            }
+        }
+
+        // 버튼 클릭 이벤트
+        document.getElementById('adminBtn').addEventListener('click', () => {
+            window.location.href = '/admin/';
+        });
+
+        document.getElementById('newsBtn').addEventListener('click', () => {
+            window.location.href = '/news/';
+        });
+
+        document.getElementById('startBtn').addEventListener('click', () => {
+            window.location.href = '/admin/';
+        });
+
+        // 페이지 로드 시 Django 연결 확인
+        document.addEventListener('DOMContentLoaded', function() {
+            // Django 연결 확인
+            checkDjangoConnection();
+            
+            // 페이지 로드 시 애니메이션
+            const cards = document.querySelectorAll('.card-hover');
+            cards.forEach((card, index) => {
+                setTimeout(() => {
+                    card.style.opacity = '1';
+                    card.style.transform = 'translateY(0)';
+                }, index * 100);
+            });
+        });
+
+        // 스크롤 효과
+        window.addEventListener('scroll', function() {
+            const scrolled = window.pageYOffset;
+            const parallax = document.querySelector('.gradient-bg');
+            const speed = scrolled * 0.5;
+            parallax.style.transform = `translateY(${speed}px)`;
+        });
+    </script>
+</body>
+</html>
+

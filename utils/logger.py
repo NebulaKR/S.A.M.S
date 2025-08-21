@@ -215,3 +215,234 @@ def get_recent_market_snapshots(sim_id: str, limit: int = 10) -> List[Dict[str, 
     except Exception as e:
         print(f"시장 스냅샷 조회 중 오류: {e}")
         return []
+
+def get_all_events_across_simulations(limit: int = 1000) -> List[Dict[str, Any]]:
+    """
+    모든 시뮬레이션에서 발생한 이벤트들을 조회한다.
+    
+    Args:
+        limit: 조회할 이벤트 수 (기본값: 1000)
+    
+    Returns:
+        모든 이벤트 목록 (시뮬레이션 ID 포함)
+    """
+    try:
+        db = get_firestore()
+        
+        # Firebase 연결 상태 확인
+        if db is None:
+            print("❌ Firebase가 연결되지 않았습니다. 이벤트 조회 불가.")
+            return []
+        
+        all_events = []
+        
+        # 모든 시뮬레이션 문서 조회
+        sim_docs = db.collection("simulations").stream()
+        
+        for sim_doc in sim_docs:
+            sim_id = sim_doc.id
+            # 각 시뮬레이션의 이벤트들 조회
+            event_docs = (
+                sim_doc.reference
+                .collection("events")
+                .order_by("created_at", direction="DESCENDING")
+                .limit(limit)
+                .stream()
+            )
+            
+            for event_doc in event_docs:
+                event_data = event_doc.to_dict()
+                event_data['simulation_id'] = sim_id  # 시뮬레이션 ID 추가
+                all_events.append(event_data)
+        
+        # 전체를 생성 시간순으로 정렬하고 limit 적용
+        all_events.sort(key=lambda x: x.get('created_at', ''), reverse=True)
+        return all_events[:limit]
+        
+    except Exception as e:
+        print(f"전체 이벤트 조회 중 오류: {e}")
+        return []
+
+def get_all_news_across_simulations(limit: int = 1000) -> List[Dict[str, Any]]:
+    """
+    모든 시뮬레이션에서 생성된 뉴스 기사들을 조회한다.
+    
+    Args:
+        limit: 조회할 뉴스 수 (기본값: 1000)
+    
+    Returns:
+        모든 뉴스 목록 (시뮬레이션 ID와 이벤트 ID 포함)
+    """
+    try:
+        db = get_firestore()
+        
+        # Firebase 연결 상태 확인
+        if db is None:
+            print("❌ Firebase가 연결되지 않았습니다. 뉴스 조회 불가.")
+            return []
+        
+        all_news = []
+        
+        # 모든 시뮬레이션 문서 조회
+        sim_docs = db.collection("simulations").stream()
+        
+        for sim_doc in sim_docs:
+            sim_id = sim_doc.id
+            # 각 시뮬레이션의 이벤트들 조회
+            event_docs = sim_doc.reference.collection("events").stream()
+            
+            for event_doc in event_docs:
+                event_id = event_doc.id
+                # 각 이벤트의 뉴스들 조회
+                news_docs = (
+                    event_doc.reference
+                    .collection("news")
+                    .order_by("created_at", direction="DESCENDING")
+                    .stream()
+                )
+                
+                for news_doc in news_docs:
+                    news_data = news_doc.to_dict()
+                    news_data['simulation_id'] = sim_id  # 시뮬레이션 ID 추가
+                    news_data['event_id'] = event_id     # 이벤트 ID 추가
+                    all_news.append(news_data)
+        
+        # 전체를 생성 시간순으로 정렬하고 limit 적용
+        all_news.sort(key=lambda x: x.get('created_at', ''), reverse=True)
+        return all_news[:limit]
+        
+    except Exception as e:
+        print(f"전체 뉴스 조회 중 오류: {e}")
+        return []
+
+def get_database_statistics() -> Dict[str, Any]:
+    """
+    전체 데이터베이스의 통계 정보를 조회한다.
+    
+    Returns:
+        데이터베이스 통계 정보
+    """
+    try:
+        print("🔍 데이터베이스 통계 조회 시작...")
+        db = get_firestore()
+        
+        # Firebase 연결 상태 확인
+        if db is None:
+            print("❌ Firebase가 연결되지 않았습니다. 개발 모드로 실행 중입니다.")
+            return {
+                'total_simulations': 0,
+                'total_events': 0,
+                'total_news': 0,
+                'total_snapshots': 0,
+                'simulation_details': [],
+                'error': 'Firebase 연결되지 않음 (개발 모드)',
+                'firebase_status': 'disconnected'
+            }
+        
+        stats = {
+            'total_simulations': 0,
+            'total_events': 0,
+            'total_news': 0,
+            'total_snapshots': 0,
+            'simulation_details': [],
+            'firebase_status': 'connected'
+        }
+        
+        # 모든 시뮬레이션 문서 조회
+        print("📊 시뮬레이션 컬렉션 조회 중...")
+        try:
+            sim_docs = list(db.collection("simulations").stream())
+            print(f"📊 발견된 시뮬레이션 수: {len(sim_docs)}")
+        except Exception as e:
+            print(f"❌ 시뮬레이션 컬렉션 조회 실패: {e}")
+            return {
+                'total_simulations': 0,
+                'total_events': 0,
+                'total_news': 0,
+                'total_snapshots': 0,
+                'simulation_details': [],
+                'error': f'시뮬레이션 컬렉션 조회 실패: {str(e)}',
+                'firebase_status': 'error'
+            }
+        
+        for sim_doc in sim_docs:
+            sim_id = sim_doc.id
+            print(f"🔍 시뮬레이션 {sim_id} 분석 중...")
+            sim_stats = {
+                'simulation_id': sim_id,
+                'events_count': 0,
+                'news_count': 0,
+                'snapshots_count': 0,
+                'last_activity': None
+            }
+            
+            # 이벤트 수 계산
+            try:
+                events = list(sim_doc.reference.collection("events").stream())
+                sim_stats['events_count'] = len(events)
+                stats['total_events'] += len(events)
+                print(f"  📝 이벤트 수: {len(events)}")
+            except Exception as e:
+                print(f"  ❌ 이벤트 조회 오류: {e}")
+            
+            # 뉴스 수 계산
+            try:
+                total_news = 0
+                for event in events:
+                    try:
+                        news_count = len(list(event.reference.collection("news").stream()))
+                        total_news += news_count
+                    except Exception as e:
+                        print(f"    ❌ 뉴스 조회 오류 (이벤트 {event.id}): {e}")
+                sim_stats['news_count'] = total_news
+                stats['total_news'] += total_news
+                print(f"  📰 뉴스 수: {total_news}")
+            except Exception as e:
+                print(f"  ❌ 뉴스 계산 오류: {e}")
+            
+            # 스냅샷 수 계산
+            try:
+                snapshots = list(sim_doc.reference.collection("snapshots").stream())
+                sim_stats['snapshots_count'] = len(snapshots)
+                stats['total_snapshots'] += len(snapshots)
+                print(f"  📊 스냅샷 수: {len(snapshots)}")
+            except Exception as e:
+                print(f"  ❌ 스냅샷 조회 오류: {e}")
+            
+            # 마지막 활동 시간 계산
+            try:
+                all_times = []
+                for event in events:
+                    event_data = event.to_dict()
+                    if 'created_at' in event_data:
+                        all_times.append(event_data['created_at'])
+                for snapshot in snapshots:
+                    snapshot_data = snapshot.to_dict()
+                    if 'created_at' in snapshot_data:
+                        all_times.append(snapshot_data['created_at'])
+                
+                if all_times:
+                    all_times.sort(reverse=True)
+                    sim_stats['last_activity'] = all_times[0]
+            except Exception as e:
+                print(f"  ❌ 시간 계산 오류: {e}")
+            
+            stats['simulation_details'].append(sim_stats)
+            stats['total_simulations'] += 1
+        
+        print(f"✅ 통계 조회 완료: {stats}")
+        return stats
+        
+    except Exception as e:
+        print(f"❌ 데이터베이스 통계 조회 중 오류: {e}")
+        import traceback
+        traceback.print_exc()
+        return {
+            'total_simulations': 0,
+            'total_events': 0,
+            'total_news': 0,
+            'total_snapshots': 0,
+            'simulation_details': [],
+            'error': str(e),
+            'firebase_status': 'error'
+        }
