@@ -1,5 +1,71 @@
 {% extends 'base.html' %}
 {% block title %}거래 - SAMS{% endblock %}
+{% block head_extra %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+.stock-item {
+    transition: all 0.2s;
+}
+
+.stock-item:hover {
+    background-color: #f3f4f6;
+    transform: translateY(-1px);
+}
+
+.stock-item.selected {
+    background-color: #dbeafe;
+    border-left: 4px solid #3b82f6;
+}
+
+.trading-section {
+    display: none;
+}
+
+.trading-section.active {
+    display: block;
+}
+
+.order-type-btn {
+    transition: all 0.2s;
+}
+
+.order-type-btn.active {
+    background-color: #3b82f6;
+    color: white;
+}
+
+.price-input {
+    transition: all 0.2s;
+}
+
+.price-input:focus {
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.chart-loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 320px;
+    color: #6b7280;
+    background-color: #f9fafb;
+    border-radius: 0.5rem;
+}
+
+.chart-error {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 320px;
+    color: #ef4444;
+    text-align: center;
+    background-color: #fef2f2;
+    border-radius: 0.5rem;
+    border: 1px solid #fecaca;
+}
+</style>
+{% endblock %}
 {% block body %}
 <div class="grid grid-cols-12 min-h-screen">
   <aside class="col-span-2 bg-white border-r">
@@ -41,46 +107,88 @@
     <!-- 알림 메시지 -->
     <div id="alert-message" class="hidden p-4 rounded-lg"></div>
 
-    <!-- 거래 폼 -->
-    <div class="grid lg:grid-cols-2 gap-6">
-      <!-- 매수 폼 -->
-      <div class="bg-white p-6 rounded-2xl shadow-soft">
-        <h3 class="text-xl font-semibold mb-4 text-red-600">주식 매수</h3>
-        <form id="buy-form" class="space-y-4">
-          <div>
-            <label class="block text-sm font-medium text-gray-700 mb-2">종목 코드</label>
-            <input type="text" id="buy-ticker" class="w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent" placeholder="예: 005930" required>
+    <!-- 거래 섹션 (초기에는 숨김) -->
+    <div id="trading-section" class="trading-section">
+      <div class="grid lg:grid-cols-3 gap-6">
+        <!-- 주가 차트 (왼쪽) -->
+        <div class="lg:col-span-2 bg-white p-6 rounded-2xl shadow-soft">
+          <div class="flex justify-between items-center mb-4">
+            <h3 class="text-xl font-semibold">
+              <span id="selected-stock-name">종목명</span> 
+              <span id="selected-stock-ticker" class="text-sm text-gray-500">(종목코드)</span>
+            </h3>
+            <div class="text-right">
+              <div id="selected-stock-price" class="text-2xl font-bold text-gray-900">₩0</div>
+              <div id="selected-stock-change" class="text-sm text-gray-600">변동률</div>
+            </div>
           </div>
-          <div>
-            <label class="block text-sm font-medium text-gray-700 mb-2">수량</label>
-            <input type="number" id="buy-quantity" class="w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent" placeholder="매수할 주식 수량" min="1" required>
+          <div id="chart-container" class="w-full h-80 relative">
+            <canvas id="priceChart" class="w-full h-80" style="display: none;"></canvas>
+            <div id="chart-loading" class="chart-loading">
+              <div class="text-center">
+                <div class="text-lg font-medium mb-2">차트 로딩 중...</div>
+                <div class="text-sm">잠시만 기다려주세요</div>
+              </div>
+            </div>
           </div>
-          <div>
-            <label class="block text-sm font-medium text-gray-700 mb-2">가격</label>
-            <input type="number" id="buy-price" class="w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent" placeholder="매수 가격" step="0.01" min="0" required>
-          </div>
-          <button type="submit" class="w-full bg-red-600 text-white py-3 rounded-xl font-semibold hover:bg-red-700 transition-colors">매수</button>
-        </form>
-      </div>
+        </div>
 
-      <!-- 매도 폼 -->
-      <div class="bg-white p-6 rounded-2xl shadow-soft">
-        <h3 class="text-xl font-semibold mb-4 text-green-600">주식 매도</h3>
-        <form id="sell-form" class="space-y-4">
-          <div>
-            <label class="block text-sm font-medium text-gray-700 mb-2">종목 코드</label>
-            <input type="text" id="sell-ticker" class="w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent" placeholder="예: 005930" required>
+        <!-- 거래 폼 (오른쪽) -->
+        <div class="bg-white p-6 rounded-2xl shadow-soft">
+          <h3 class="text-xl font-semibold mb-4">주문</h3>
+          
+          <!-- 주문 유형 선택 -->
+          <div class="flex gap-2 mb-4">
+            <button id="market-order-btn" class="order-type-btn px-4 py-2 rounded-lg bg-gray-100 text-gray-800 text-sm font-medium active">
+              시장가
+            </button>
+            <button id="limit-order-btn" class="order-type-btn px-4 py-2 rounded-lg bg-gray-100 text-gray-800 text-sm font-medium">
+              지정가
+            </button>
           </div>
-          <div>
-            <label class="block text-sm font-medium text-gray-700 mb-2">수량</label>
-            <input type="number" id="sell-quantity" class="w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent" placeholder="매도할 주식 수량" min="1" required>
+
+          <!-- 매수 폼 -->
+          <div class="mb-6">
+            <h4 class="text-lg font-semibold mb-3 text-red-600">매수</h4>
+            <form id="buy-form" class="space-y-3">
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">수량</label>
+                <input type="number" id="buy-quantity" class="w-full border border-gray-300 rounded-lg px-3 py-2 price-input" placeholder="매수할 주식 수량" min="1" required>
+              </div>
+              <div id="buy-price-container" class="hidden">
+                <label class="block text-sm font-medium text-gray-700 mb-1">가격</label>
+                <input type="number" id="buy-price" class="w-full border border-gray-300 rounded-lg px-3 py-2 price-input" placeholder="매수 가격" step="100" min="0">
+              </div>
+              <div class="text-sm text-gray-600">
+                예상 금액: <span id="buy-total" class="font-semibold">₩0</span>
+              </div>
+              <button type="submit" class="w-full bg-red-600 text-white py-2 rounded-lg font-medium hover:bg-red-700 transition-colors">
+                매수
+              </button>
+            </form>
           </div>
+
+          <!-- 매도 폼 -->
           <div>
-            <label class="block text-sm font-medium text-gray-700 mb-2">가격</label>
-            <input type="number" id="sell-price" class="w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent" placeholder="매도 가격" step="0.01" min="0" required>
+            <h4 class="text-lg font-semibold mb-3 text-green-600">매도</h4>
+            <form id="sell-form" class="space-y-3">
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">수량</label>
+                <input type="number" id="sell-quantity" class="w-full border border-gray-300 rounded-lg px-3 py-2 price-input" placeholder="매도할 주식 수량" min="1" required>
+              </div>
+              <div id="sell-price-container" class="hidden">
+                <label class="block text-sm font-medium text-gray-700 mb-1">가격</label>
+                <input type="number" id="sell-price" class="w-full border border-gray-300 rounded-lg px-3 py-2 price-input" placeholder="매도 가격" step="100" min="0">
+              </div>
+              <div class="text-sm text-gray-600">
+                예상 금액: <span id="sell-total" class="font-semibold">₩0</span>
+              </div>
+              <button type="submit" class="w-full bg-green-600 text-white py-2 rounded-lg font-medium hover:bg-green-700 transition-colors">
+                매도
+              </button>
+            </form>
           </div>
-          <button type="submit" class="w-full bg-green-600 text-white py-3 rounded-xl font-semibold hover:bg-green-700 transition-colors">매도</button>
-        </form>
+        </div>
       </div>
     </div>
 
@@ -93,29 +201,34 @@
         <input type="text" id="stock-search" class="w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" placeholder="종목명 또는 코드로 검색...">
       </div>
       
-             <div id="stock-list-container" class="space-y-2">
-         {% if all_stocks %}
-           {% for stock in all_stocks %}
-           <div class="stock-item flex justify-between items-center p-4 border-b border-gray-100 hover:bg-gray-50 cursor-pointer transition-colors" data-ticker="{{ stock.ticker }}" data-name="{{ stock.name }}">
-             <div class="flex-1">
-               <div class="font-bold text-gray-900">{{ stock.ticker }}</div>
-               <div class="text-sm text-gray-600">{{ stock.name }}</div>
-             </div>
-             <div class="text-right mr-4">
-               <div class="text-lg font-bold text-gray-900">₩{{ stock.current_price|floatformat:0 }}</div>
-               <div class="text-sm {% if stock.change > 0 %}text-red-600{% elif stock.change < 0 %}text-green-600{% else %}text-gray-600{% endif %}">
-                 {% if stock.change > 0 %}+{% endif %}{{ stock.change|floatformat:0 }} ({{ stock.change_percent|floatformat:1 }}%)
-               </div>
-             </div>
-           </div>
-           {% endfor %}
-         {% else %}
-           <div class="text-center py-8 text-gray-500">
-             <p>거래 가능한 주식이 없습니다.</p>
-             <p class="text-sm mt-2">시뮬레이션을 시작하면 주식 목록이 표시됩니다.</p>
-           </div>
-         {% endif %}
-       </div>
+      <div id="stock-list-container" class="space-y-2">
+        {% if all_stocks %}
+          {% for stock in all_stocks %}
+          <div class="stock-item flex justify-between items-center p-4 border border-gray-200 rounded-lg hover:shadow-md cursor-pointer transition-all" 
+               data-ticker="{{ stock.ticker }}" 
+               data-name="{{ stock.name }}"
+               data-price="{{ stock.current_price }}"
+               data-change="{{ stock.change }}"
+               data-change-percent="{{ stock.change_percent }}">
+            <div class="flex-1">
+              <div class="font-bold text-gray-900">{{ stock.ticker }}</div>
+              <div class="text-sm text-gray-600">{{ stock.name }}</div>
+            </div>
+            <div class="text-right mr-4">
+              <div class="text-lg font-bold text-gray-900">₩{{ stock.current_price|floatformat:0 }}</div>
+              <div class="text-sm {% if stock.change > 0 %}text-red-600{% elif stock.change < 0 %}text-green-600{% else %}text-gray-600{% endif %}">
+                {% if stock.change > 0 %}+{% endif %}{{ stock.change|floatformat:0 }} ({{ stock.change_percent|floatformat:1 }}%)
+              </div>
+            </div>
+          </div>
+          {% endfor %}
+        {% else %}
+          <div class="text-center py-8 text-gray-500">
+            <p>거래 가능한 주식이 없습니다.</p>
+            <p class="text-sm mt-2">시뮬레이션을 시작하면 주식 목록이 표시됩니다.</p>
+          </div>
+        {% endif %}
+      </div>
     </div>
   </main>
 </div>
@@ -123,95 +236,34 @@
 
 {% block scripts %}
 <script>
+let priceChart = null;
+let selectedStock = null;
+
 document.addEventListener('DOMContentLoaded', function() {
-    // 매수 폼 처리
-    document.getElementById('buy-form').addEventListener('submit', function(e) {
-        e.preventDefault();
-        
-        const ticker = document.getElementById('buy-ticker').value;
-        const quantity = parseInt(document.getElementById('buy-quantity').value);
-        const price = parseFloat(document.getElementById('buy-price').value);
-        
-        if (!ticker || !quantity || !price) {
-            showAlert('모든 필드를 입력해주세요.', 'error');
-            return;
-        }
-        
-        // 매수 API 호출
-        fetch('/api/trading/buy/', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRFToken': getCookie('csrftoken')
-            },
-            body: JSON.stringify({
-                ticker: ticker,
-                quantity: quantity,
-                price: price
-            })
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                showAlert(data.message, 'success');
-                // 폼 초기화
-                document.getElementById('buy-form').reset();
-                // 포트폴리오 정보 새로고침
-                setTimeout(() => location.reload(), 1500);
-            } else {
-                showAlert(data.message, 'error');
-            }
-        })
-        .catch(error => {
-            showAlert('매수 처리 중 오류가 발생했습니다.', 'error');
-            console.error('Error:', error);
-        });
+    // Chart.js 라이브러리 로딩 확인
+    if (typeof Chart === 'undefined') {
+        console.error('Chart.js library not loaded');
+        showChartError('Chart.js 라이브러리를 불러올 수 없습니다.');
+        return;
+    }
+    
+    console.log('Chart.js library loaded successfully');
+    
+    // 초기 로딩 상태 숨기기
+    const loadingDiv = document.getElementById('chart-loading');
+    if (loadingDiv) {
+        loadingDiv.style.display = 'none';
+    }
+    
+    // 주문 유형 선택
+    document.getElementById('market-order-btn').addEventListener('click', function() {
+        setOrderType('market');
     });
     
-    // 매도 폼 처리
-    document.getElementById('sell-form').addEventListener('submit', function(e) {
-        e.preventDefault();
-        
-        const ticker = document.getElementById('sell-ticker').value;
-        const quantity = parseInt(document.getElementById('sell-quantity').value);
-        const price = parseFloat(document.getElementById('sell-price').value);
-        
-        if (!ticker || !quantity || !price) {
-            showAlert('모든 필드를 입력해주세요.', 'error');
-            return;
-        }
-        
-        // 매도 API 호출
-        fetch('/api/trading/sell/', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRFToken': getCookie('csrftoken')
-            },
-            body: JSON.stringify({
-                ticker: ticker,
-                quantity: quantity,
-                price: price
-            })
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                showAlert(data.message, 'success');
-                // 폼 초기화
-                document.getElementById('sell-form').reset();
-                // 포트폴리오 정보 새로고침
-                setTimeout(() => location.reload(), 1500);
-            } else {
-                showAlert(data.message, 'error');
-            }
-        })
-        .catch(error => {
-            showAlert('매도 처리 중 오류가 발생했습니다.', 'error');
-            console.error('Error:', error);
-        });
+    document.getElementById('limit-order-btn').addEventListener('click', function() {
+        setOrderType('limit');
     });
-    
+
     // 주식 검색 기능
     document.getElementById('stock-search').addEventListener('input', function(e) {
         const searchTerm = e.target.value.toLowerCase();
@@ -228,52 +280,376 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     });
-    
-    // 주식 클릭 시 폼에 자동 입력
+
+    // 주식 클릭 시 거래 섹션 표시
     document.querySelectorAll('.stock-item').forEach(item => {
         item.addEventListener('click', function() {
-            const ticker = this.dataset.ticker;
-            const currentPrice = parseFloat(this.querySelector('.text-lg').textContent.replace('₩', '').replace(',', ''));
-            
-            // 매수/매도 폼에 자동 입력
-            document.getElementById('buy-ticker').value = ticker;
-            document.getElementById('buy-price').value = currentPrice;
-            document.getElementById('sell-ticker').value = ticker;
-            document.getElementById('sell-price').value = currentPrice;
+            selectStock(this);
         });
     });
+
+    // 매수 폼 처리
+    document.getElementById('buy-form').addEventListener('submit', function(e) {
+        e.preventDefault();
+        processOrder('buy');
+    });
+
+    // 매도 폼 처리
+    document.getElementById('sell-form').addEventListener('submit', function(e) {
+        e.preventDefault();
+        processOrder('sell');
+    });
+
+    // 수량 입력 시 예상 금액 계산
+    document.getElementById('buy-quantity').addEventListener('input', function() {
+        calculateTotal('buy');
+    });
+
+    document.getElementById('sell-quantity').addEventListener('input', function() {
+        calculateTotal('sell');
+    });
+
+    // 가격 입력 시 예상 금액 계산 (지정가 주문)
+    document.getElementById('buy-price').addEventListener('input', function() {
+        calculateTotal('buy');
+    });
+
+    document.getElementById('sell-price').addEventListener('input', function() {
+        calculateTotal('sell');
+    });
+});
+
+function selectStock(stockElement) {
+    // 이전 선택 해제
+    document.querySelectorAll('.stock-item').forEach(item => {
+        item.classList.remove('selected');
+    });
+
+    // 현재 선택 표시
+    stockElement.classList.add('selected');
+
+    // 선택된 주식 정보 저장
+    selectedStock = {
+        ticker: stockElement.dataset.ticker,
+        name: stockElement.dataset.name,
+        price: parseFloat(stockElement.dataset.price),
+        change: parseFloat(stockElement.dataset.change),
+        changePercent: parseFloat(stockElement.dataset.changePercent)
+    };
+
+    // 거래 섹션 표시
+    document.getElementById('trading-section').classList.add('active');
+
+    // 주식 정보 업데이트
+    updateStockInfo();
     
-    // 알림 메시지 표시 함수
-    function showAlert(message, type) {
-        const alertDiv = document.getElementById('alert-message');
-        alertDiv.textContent = message;
+    // 차트 생성
+    createPriceChart();
+    
+    // 폼 초기화
+    resetForms();
+}
+
+function updateStockInfo() {
+    document.getElementById('selected-stock-name').textContent = selectedStock.name;
+    document.getElementById('selected-stock-ticker').textContent = `(${selectedStock.ticker})`;
+    document.getElementById('selected-stock-price').textContent = `₩${selectedStock.price.toLocaleString()}`;
+    
+    const changeText = `${selectedStock.change >= 0 ? '+' : ''}${selectedStock.change.toLocaleString()} (${selectedStock.changePercent >= 0 ? '+' : ''}${selectedStock.changePercent.toFixed(1)}%)`;
+    const changeElement = document.getElementById('selected-stock-change');
+    changeElement.textContent = changeText;
+    changeElement.className = `text-sm ${selectedStock.change >= 0 ? 'text-red-600' : 'text-green-600'}`;
+}
+
+function createPriceChart() {
+    try {
+        // 로딩 상태 표시
+        showChartLoading();
         
-        if (type === 'success') {
-            alertDiv.className = 'block p-4 rounded-lg bg-green-100 text-green-800 border border-green-200';
-        } else {
-            alertDiv.className = 'block p-4 rounded-lg bg-red-100 text-red-800 border border-red-200';
+        const ctx = document.getElementById('priceChart');
+        
+        if (!ctx) {
+            console.error('priceChart canvas element not found');
+            showChartError('차트 영역을 찾을 수 없습니다.');
+            return;
         }
         
+        // 기존 차트 제거
+        if (priceChart) {
+            priceChart.destroy();
+        }
+
+        // 데이터 유효성 검사
+        if (!selectedStock || !selectedStock.price || isNaN(selectedStock.price)) {
+            console.error('Invalid stock data for chart:', selectedStock);
+            showChartError('주식 데이터가 유효하지 않습니다.');
+            return;
+        }
+
+        // Chart.js가 로드되었는지 확인
+        if (typeof Chart === 'undefined') {
+            console.error('Chart.js library not loaded');
+            showChartError('Chart.js 라이브러리를 불러올 수 없습니다.');
+            return;
+        }
+
+        // 샘플 데이터 생성 (더 안정적인 방식)
+        const labels = [];
+        const data = [];
+        const basePrice = parseFloat(selectedStock.price);
+        
+        for (let i = 19; i >= 0; i--) {
+            labels.push(`${i + 1}일 전`);
+            // 현재가 기준으로 ±5% 범위 내에서 랜덤하게 생성
+            const randomFactor = 0.95 + (Math.random() * 0.1); // 0.95 ~ 1.05
+            data.push(Math.round(basePrice * randomFactor));
+        }
+
+        // 잠시 대기 후 차트 생성 (로딩 상태 표시를 위해)
         setTimeout(() => {
-            alertDiv.className = 'hidden';
-        }, 5000);
+            try {
+                priceChart = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            label: '주가',
+                            data: data,
+                            borderColor: '#3b82f6',
+                            backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                            tension: 0.4,
+                            fill: true,
+                            pointRadius: 3,
+                            pointHoverRadius: 5
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: { display: false },
+                            tooltip: {
+                                callbacks: {
+                                    label: function(context) {
+                                        return '₩' + context.parsed.y.toLocaleString();
+                                    }
+                                }
+                            }
+                        },
+                        scales: {
+                            y: {
+                                beginAtZero: false,
+                                ticks: {
+                                    callback: function(value) {
+                                        return '₩' + value.toLocaleString();
+                                    }
+                                },
+                                grid: {
+                                    color: 'rgba(0, 0, 0, 0.1)'
+                                }
+                            },
+                            x: {
+                                ticks: {
+                                    maxTicksLimit: 10
+                                },
+                                grid: {
+                                    color: 'rgba(0, 0, 0, 0.1)'
+                                }
+                            }
+                        },
+                        interaction: {
+                            intersect: false,
+                            mode: 'index'
+                        }
+                    }
+                });
+                
+                // 차트 생성 성공 시 로딩 상태 숨김
+                hideChartLoading();
+                console.log('Chart created successfully for:', selectedStock.name);
+                
+            } catch (chartError) {
+                console.error('Error creating chart:', chartError);
+                showChartError('차트 생성 중 오류가 발생했습니다.');
+            }
+        }, 500);
+        
+    } catch (error) {
+        console.error('Error in createPriceChart:', error);
+        showChartError('차트 생성 중 오류가 발생했습니다.');
+    }
+}
+
+function showChartLoading() {
+    const loadingDiv = document.getElementById('chart-loading');
+    const canvas = document.getElementById('priceChart');
+    
+    if (loadingDiv) loadingDiv.style.display = 'flex';
+    if (canvas) canvas.style.display = 'none';
+}
+
+function hideChartLoading() {
+    const loadingDiv = document.getElementById('chart-loading');
+    const canvas = document.getElementById('priceChart');
+    
+    if (loadingDiv) loadingDiv.style.display = 'none';
+    if (canvas) canvas.style.display = 'block';
+}
+
+function showChartError(message) {
+    const loadingDiv = document.getElementById('chart-loading');
+    const canvas = document.getElementById('priceChart');
+    
+    if (loadingDiv) {
+        loadingDiv.className = 'chart-error';
+        loadingDiv.innerHTML = `
+            <div class="text-center">
+                <div class="text-lg font-medium mb-2">차트 로딩 실패</div>
+                <div class="text-sm">${message}</div>
+                <button onclick="retryChart()" class="mt-3 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                    다시 시도
+                </button>
+            </div>
+        `;
+        loadingDiv.style.display = 'flex';
     }
     
-    // CSRF 토큰 가져오기
-    function getCookie(name) {
-        let cookieValue = null;
-        if (document.cookie && document.cookie !== '') {
-            const cookies = document.cookie.split(';');
-            for (let i = 0; i < cookies.length; i++) {
-                const cookie = cookies[i].trim();
-                if (cookie.substring(0, name.length + 1) === (name + '=')) {
-                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
-                    break;
-                }
+    if (canvas) canvas.style.display = 'none';
+}
+
+function retryChart() {
+    if (selectedStock) {
+        createPriceChart();
+    }
+}
+
+function setOrderType(type) {
+    const marketBtn = document.getElementById('market-order-btn');
+    const limitBtn = document.getElementById('limit-order-btn');
+    const buyPriceContainer = document.getElementById('buy-price-container');
+    const sellPriceContainer = document.getElementById('sell-price-container');
+
+    if (type === 'market') {
+        marketBtn.classList.add('active');
+        limitBtn.classList.remove('active');
+        buyPriceContainer.classList.add('hidden');
+        sellPriceContainer.classList.add('hidden');
+        
+        // 시장가 주문 시 현재가로 설정
+        document.getElementById('buy-price').value = selectedStock.price;
+        document.getElementById('sell-price').value = selectedStock.price;
+    } else {
+        limitBtn.classList.add('active');
+        marketBtn.classList.remove('active');
+        buyPriceContainer.classList.remove('hidden');
+        sellPriceContainer.classList.remove('hidden');
+    }
+}
+
+function calculateTotal(type) {
+    const quantity = parseInt(document.getElementById(`${type}-quantity`).value) || 0;
+    const price = parseFloat(document.getElementById(`${type}-price`).value) || selectedStock.price;
+    const total = quantity * price;
+    
+    document.getElementById(`${type}-total`).textContent = `₩${total.toLocaleString()}`;
+}
+
+function resetForms() {
+    document.getElementById('buy-form').reset();
+    document.getElementById('sell-form').reset();
+    document.getElementById('buy-quantity').value = '';
+    document.getElementById('sell-quantity').value = '';
+    document.getElementById('buy-price').value = selectedStock.price;
+    document.getElementById('sell-price').value = selectedStock.price;
+    document.getElementById('buy-total').textContent = '₩0';
+    document.getElementById('sell-total').textContent = '₩0';
+    
+    // 시장가 주문으로 초기화
+    setOrderType('market');
+}
+
+function processOrder(type) {
+    if (!selectedStock) {
+        showAlert('주식을 선택해주세요.', 'error');
+        return;
+    }
+
+    const quantity = parseInt(document.getElementById(`${type}-quantity`).value);
+    const price = parseFloat(document.getElementById(`${type}-price`).value);
+    const orderType = document.getElementById('market-order-btn').classList.contains('active') ? 'market' : 'limit';
+
+    if (!quantity || quantity <= 0) {
+        showAlert('수량을 입력해주세요.', 'error');
+        return;
+    }
+
+    if (orderType === 'limit' && (!price || price <= 0)) {
+        showAlert('가격을 입력해주세요.', 'error');
+        return;
+    }
+
+    // 주문 처리
+    const orderData = {
+        ticker: selectedStock.ticker,
+        quantity: quantity,
+        price: orderType === 'market' ? selectedStock.price : price,
+        order_type: orderType
+    };
+
+    // API 호출
+    fetch(`/api/trading/${type}/`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCookie('csrftoken')
+        },
+        body: JSON.stringify(orderData)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showAlert(data.message, 'success');
+            resetForms();
+            // 포트폴리오 정보 새로고침
+            setTimeout(() => location.reload(), 1500);
+        } else {
+            showAlert(data.message, 'error');
+        }
+    })
+    .catch(error => {
+        showAlert(`${type === 'buy' ? '매수' : '매도'} 처리 중 오류가 발생했습니다.`, 'error');
+        console.error('Error:', error);
+    });
+}
+
+function showAlert(message, type) {
+    const alertDiv = document.getElementById('alert-message');
+    alertDiv.textContent = message;
+    
+    if (type === 'success') {
+        alertDiv.className = 'block p-4 rounded-lg bg-green-100 text-green-800 border border-green-200';
+    } else {
+        alertDiv.className = 'block p-4 rounded-lg bg-red-100 text-red-800 border border-red-200';
+    }
+    
+    setTimeout(() => {
+        alertDiv.className = 'hidden';
+    }, 5000);
+}
+
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
             }
         }
-        return cookieValue;
     }
-});
+    return cookieValue;
+}
 </script>
 {% endblock %}
