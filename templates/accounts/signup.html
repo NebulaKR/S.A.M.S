@@ -3,16 +3,106 @@
 {% block body %}
 <section class="min-h-screen grid place-items-center bg-gradient-to-b from-white to-slate-100 px-4">
   <div class="max-w-md w-full bg-white p-8 rounded-2xl shadow-soft">
-    <h2 class="text-2xl font-bold text-center">회원가입</h2>
-    <form method="post" class="mt-6 space-y-4">
+    <h2 class="text-2xl font-bold text-center text-gray-800 mb-8">회원가입</h2>
+    
+    <form method="post" class="space-y-6">
       {% csrf_token %}
-      {{ form.as_p }}  <!-- username, password1, password2 -->
-      <button type="submit" class="w-full py-3 bg-brand-600 text-white rounded-xl">가입하기</button>
+      
+      <!-- 사용자명 입력 필드 -->
+      <div class="space-y-2">
+        <label for="{{ form.username.id_for_label }}" class="block text-sm font-medium text-gray-700">
+          사용자명
+        </label>
+        <input 
+          type="text" 
+          name="{{ form.username.name }}" 
+          id="{{ form.username.id_for_label }}"
+          class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-transparent transition-colors"
+          placeholder="사용자명을 입력하세요"
+          required
+        >
+        {% if form.username.errors %}
+          <p class="text-red-500 text-sm">{{ form.username.errors.0 }}</p>
+        {% endif %}
+        <p class="text-xs text-gray-500">
+          영문, 숫자, 특수문자(@/./+/-/_)만 사용 가능하며 150자 이하여야 합니다.
+        </p>
+      </div>
+
+      <!-- 비밀번호 입력 필드 -->
+      <div class="space-y-2">
+        <label for="{{ form.password1.id_for_label }}" class="block text-sm font-medium text-gray-700">
+          비밀번호
+        </label>
+        <input 
+          type="password" 
+          name="{{ form.password1.name }}" 
+          id="{{ form.password1.id_for_label }}"
+          class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-transparent transition-colors"
+          placeholder="비밀번호를 입력하세요"
+          required
+        >
+        {% if form.password1.errors %}
+          <p class="text-red-500 text-sm">{{ form.password1.errors.0 }}</p>
+        {% endif %}
+      </div>
+
+      <!-- 비밀번호 확인 입력 필드 -->
+      <div class="space-y-2">
+        <label for="{{ form.password2.id_for_label }}" class="block text-sm font-medium text-gray-700">
+          비밀번호 확인
+        </label>
+        <input 
+          type="password" 
+          name="{{ form.password2.name }}" 
+          id="{{ form.password2.id_for_label }}"
+          class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-transparent transition-colors"
+          placeholder="비밀번호를 다시 입력하세요"
+          required
+        >
+        {% if form.password2.errors %}
+          <p class="text-red-500 text-sm">{{ form.password2.errors.0 }}</p>
+        {% endif %}
+      </div>
+
+      <!-- 비밀번호 요구사항 -->
+      <div class="bg-blue-50 p-4 rounded-lg">
+        <h4 class="text-sm font-medium text-blue-800 mb-2">비밀번호 요구사항</h4>
+        <ul class="text-xs text-blue-700 space-y-1">
+          <li class="flex items-center">
+            <span class="w-1.5 h-1.5 bg-blue-500 rounded-full mr-2"></span>
+            최소 8자 이상이어야 합니다
+          </li>
+          <li class="flex items-center">
+            <span class="w-1.5 h-1.5 bg-blue-500 rounded-full mr-2"></span>
+            개인정보와 유사하지 않아야 합니다
+          </li>
+          <li class="flex items-center">
+            <span class="w-1.5 h-1.5 bg-blue-500 rounded-full mr-2"></span>
+            일반적으로 사용되는 비밀번호는 사용할 수 없습니다
+          </li>
+          <li class="flex items-center">
+            <span class="w-1.5 h-1.5 bg-blue-500 rounded-full mr-2"></span>
+            숫자로만 구성될 수 없습니다
+          </li>
+        </ul>
+      </div>
+
+      <!-- 가입하기 버튼 -->
+      <button type="submit" class="w-full py-3 bg-brand-600 hover:bg-brand-700 text-white font-medium rounded-lg transition-colors duration-200">
+        가입하기
+      </button>
     </form>
-    <p class="mt-6 text-center text-sm">
-      이미 계정이 있으신가요?
-      <a class="text-brand-600 underline" href="{% url 'login' %}">로그인</a>
-    </p>
+
+    <!-- 로그인 링크 -->
+    <div class="mt-6 text-center">
+      <p class="text-sm text-gray-600">
+        이미 계정이 있으신가요?
+        <a href="{% url 'login' %}" class="text-brand-600 hover:text-brand-700 font-medium underline">
+          로그인
+        </a>
+      </p>
+    </div>
   </div>
 </section>
 {% endblock %}
