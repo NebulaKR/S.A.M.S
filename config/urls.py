@@ -36,6 +36,10 @@ urlpatterns = [
     path('api/portfolio/watchlist/add/', sams_views.add_to_watchlist, name='api_add_watchlist'),
     path('api/portfolio/watchlist/remove/', sams_views.remove_from_watchlist, name='api_remove_watchlist'),
     path('api/portfolio/data/', sams_views.get_portfolio_data, name='api_portfolio_data'),
+    
+    # 새로운 거래 API 엔드포인트
+    path('api/trading/buy/', sams_views.buy_stock_api, name='api_trading_buy'),
+    path('api/trading/sell/', sams_views.sell_stock_api, name='api_trading_sell'),
 
     # 파이어베이스 시뮬레이션 데이터 API 엔드포인트들
     path('api/simulation/status/', sams_views.get_simulation_status, name='api_simulation_status'),
