@@ -460,28 +460,71 @@ const portfolioChart = new Chart(ctx, {
     }
 });
 
-// 실시간 포트폴리오 업데이트 (5초마다)
+// 실시간 포트폴리오 업데이트 (1초마다)
 setInterval(async () => {
     try {
-        const response = await fetch('{% url "api_portfolio_data" %}');
-        const data = await response.json();
+        // 포트폴리오 데이터 업데이트
+        const portfolioResponse = await fetch('{% url "api_portfolio_data" %}');
+        const portfolioData = await portfolioResponse.json();
         
-        if (data.success) {
+        if (portfolioData.success) {
             // 주요 지표 업데이트
             document.querySelector('.portfolio-summary .text-2xl').textContent = 
-                '₩' + data.data.total_value.toLocaleString();
+                '₩' + portfolioData.data.total_value.toLocaleString();
             
             // 차트 업데이트
             portfolioChart.data.datasets[0].data = [
-                data.data.cash_balance,
-                data.data.stock_value
+                portfolioData.data.cash_balance,
+                portfolioData.data.stock_value
             ];
             portfolioChart.update();
         }
+        
+        // 실시간 주가 데이터 업데이트
+        const stockResponse = await fetch('{% url "api_real_time_stock_prices" %}');
+        const stockData = await stockResponse.json();
+        
+        if (stockData.success) {
+            // 각 주식 카드의 가격과 변동률 업데이트
+            Object.keys(stockData.data).forEach(ticker => {
+                const stock = stockData.data[ticker];
+                const stockCard = document.querySelector(`[data-ticker="${ticker}"]`);
+                
+                if (stockCard) {
+                    // 현재 가격 업데이트
+                    const priceElement = stockCard.querySelector('.price-value');
+                    if (priceElement) {
+                        priceElement.textContent = '₩' + stock.current_price.toLocaleString();
+                    }
+                    
+                    // 가격 변동률 업데이트
+                    const changeElement = stockCard.querySelector('.price-change');
+                    if (changeElement) {
+                        changeElement.textContent = (stock.change_percent >= 0 ? '+' : '') + stock.change_percent.toFixed(2) + '%';
+                        changeElement.className = `price-change ${stock.change_percent >= 0 ? 'positive' : 'negative'}`;
+                    }
+                    
+                    // 포트폴리오 카드의 가격도 업데이트
+                    const portfolioCard = document.querySelector(`.portfolio-stock[data-ticker="${ticker}"]`);
+                    if (portfolioCard) {
+                        const portfolioPrice = portfolioCard.querySelector('.font-bold');
+                        if (portfolioPrice) {
+                            portfolioPrice.textContent = '₩' + stock.current_price.toLocaleString();
+                        }
+                        
+                        const portfolioChange = portfolioCard.querySelector('.text-sm');
+                        if (portfolioChange) {
+                            portfolioChange.textContent = (stock.change_percent >= 0 ? '+' : '') + stock.change_percent.toFixed(2) + '%';
+                            portfolioChange.className = `text-sm ${stock.change_percent >= 0 ? 'text-green-600' : 'text-red-600'}`;
+                        }
+                    }
+                }
+            });
+        }
     } catch (error) {
-        console.log('포트폴리오 업데이트 실패:', error);
+        console.log('실시간 업데이트 실패:', error);
     }
-}, 5000);
+}, 1000);
 
 // 섹터별 필터링
 document.querySelectorAll('.sector-filter').forEach(btn => {
