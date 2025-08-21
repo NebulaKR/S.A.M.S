@@ -980,6 +980,80 @@ document.addEventListener('DOMContentLoaded', function() {
             fetchSimulationData();
         }
     }, 30000); // 30초마다
+    
+    // 실시간 주가 업데이트 (1초마다)
+    setInterval(updateRealTimeStockPrices, 1000);
 });
+
+// 실시간 주가 업데이트 함수
+async function updateRealTimeStockPrices() {
+    try {
+        const response = await fetch('/api/stocks/prices/');
+        const data = await response.json();
+        
+        if (data.success) {
+            // 모든 주식 카드 업데이트
+            Object.keys(data.data).forEach(ticker => {
+                const stock = data.data[ticker];
+                const stockCard = document.querySelector(`[data-ticker="${ticker}"]`);
+                
+                if (stockCard) {
+                    // 가격 업데이트
+                    const priceElement = stockCard.querySelector('.font-bold.text-lg');
+                    if (priceElement) {
+                        priceElement.textContent = '₩' + stock.current_price.toLocaleString();
+                    }
+                    
+                    // 변동률 업데이트
+                    const changeElement = stockCard.querySelector('.text-sm');
+                    if (changeElement) {
+                        const changeText = (stock.change_percent >= 0 ? '+' : '') + stock.change_percent.toFixed(2) + '%';
+                        changeElement.textContent = changeText;
+                        changeElement.className = `text-sm ${stock.change_percent >= 0 ? 'text-green-600' : 'text-red-600'}`;
+                    }
+                }
+            });
+            
+            // 차트 데이터도 업데이트
+            updatePriceChartData(data.data);
+        }
+    } catch (error) {
+        console.log('실시간 주가 업데이트 실패:', error);
+    }
+}
+
+// 차트 데이터 업데이트
+function updatePriceChartData(stockData) {
+    if (priceChart && priceChart.data) {
+        // 선택된 종목의 가격 데이터로 차트 업데이트
+        const selectedTicker = document.getElementById('chartStock').value;
+        if (stockData[selectedTicker]) {
+            const currentPrice = stockData[selectedTicker].current_price;
+            
+            // 가격 히스토리에 현재 가격 추가
+            if (!priceHistory[selectedTicker]) {
+                priceHistory[selectedTicker] = [];
+            }
+            
+            priceHistory[selectedTicker].push({
+                time: new Date(),
+                price: currentPrice
+            });
+            
+            // 최근 30개 데이터만 유지
+            if (priceHistory[selectedTicker].length > 30) {
+                priceHistory[selectedTicker] = priceHistory[selectedTicker].slice(-30);
+            }
+            
+            // 차트 데이터 업데이트
+            const labels = priceHistory[selectedTicker].map((_, index) => index);
+            const prices = priceHistory[selectedTicker].map(item => item.price);
+            
+            priceChart.data.labels = labels;
+            priceChart.data.datasets[0].data = prices;
+            priceChart.update('none'); // 애니메이션 없이 업데이트
+        }
+    }
+}
 </script>
 {% endblock %} 

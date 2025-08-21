@@ -23,15 +23,19 @@ FIREBASE_PROJECT_ID = os.getenv("FIREBASE_PROJECT_ID")
 FIREBASE_CREDENTIALS_PATH = os.getenv("FIREBASE_CREDENTIALS_PATH")
 
 # Firebase 초기화
-if FIREBASE_CREDENTIALS_PATH and not os.path.isabs(FIREBASE_CREDENTIALS_PATH):
-    FIREBASE_CREDENTIALS_PATH = str((BASE_DIR / FIREBASE_CREDENTIALS_PATH).resolve())
+FIREBASE_CREDENTIALS_PATH = str(BASE_DIR / "firebase-credentials.json")
 
-if FIREBASE_CREDENTIALS_PATH and os.path.exists(FIREBASE_CREDENTIALS_PATH):
-    cred = credentials.Certificate(FIREBASE_CREDENTIALS_PATH)
-    if not firebase_admin._apps:
-        firebase_admin.initialize_app(cred, {"projectId": FIREBASE_PROJECT_ID})
+if os.path.exists(FIREBASE_CREDENTIALS_PATH):
+    try:
+        cred = credentials.Certificate(FIREBASE_CREDENTIALS_PATH)
+        if not firebase_admin._apps:
+            firebase_admin.initialize_app(cred, {"projectId": "sams-e1b60"})
+            print("Firebase 초기화 성공!")
+    except Exception as e:
+        print(f"Firebase 초기화 실패 (개발 모드): {e}")
+        pass
 else:
-    # 개발 단계에선 미초기화 허용
+    print(f"Firebase 자격 증명 파일을 찾을 수 없습니다: {FIREBASE_CREDENTIALS_PATH}")
     pass
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent

@@ -1,7 +1,7 @@
 
 import requests
 
-def query_llm(prompt: str, model: str = "llama3", max_tokens: int = 512) -> str:
+def query_llm(prompt: str, model: str = "llama3.2:3b", max_tokens: int = 512) -> str:
     url = "http://localhost:11434/api/generate"
     payload = {
         "model": model,

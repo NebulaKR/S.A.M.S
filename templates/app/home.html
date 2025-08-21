@@ -68,6 +68,77 @@
 document.addEventListener('DOMContentLoaded',()=>{
   const ctx=document.getElementById('priceChart');
   new Chart(ctx,{type:'line',data:{labels:[...Array(30).keys()],datasets:[{data:[100,102,105,104,107],borderColor:'#3b82f6'}]},options:{responsive:true,plugins:{legend:{display:false}}}});
+  
+  // 실시간 주가 업데이트 (1초마다)
+  setInterval(async () => {
+    try {
+      const response = await fetch('{% url "api_real_time_stock_prices" %}');
+      const data = await response.json();
+      
+      if (data.success) {
+        // 관심종목 테이블 업데이트
+        const watchlistRows = document.querySelectorAll('tbody tr');
+        watchlistRows.forEach(row => {
+          const stockName = row.querySelector('td:first-child').textContent;
+          
+          // 종목명으로 해당하는 주식 데이터 찾기
+          let stockData = null;
+          for (const ticker in data.data) {
+            if (data.data[ticker].name === stockName) {
+              stockData = data.data[ticker];
+              break;
+            }
+          }
+          
+          if (stockData) {
+            // 가격 업데이트
+            const priceCell = row.querySelector('td:nth-child(2)');
+            if (priceCell) {
+              priceCell.textContent = '₩' + stockData.current_price.toLocaleString();
+            }
+            
+            // 등락률 업데이트
+            const changeCell = row.querySelector('td:nth-child(3)');
+            if (changeCell) {
+              const changeText = (stockData.change_percent >= 0 ? '+' : '') + stockData.change_percent.toFixed(2) + '%';
+              changeCell.textContent = changeText;
+              changeCell.className = stockData.change_percent >= 0 ? 'text-emerald-600' : 'text-rose-600';
+            }
+          }
+        });
+        
+        // KPI 업데이트 (총자산, 일일 변동률 등)
+        updateKPIs();
+      }
+    } catch (error) {
+      console.log('실시간 주가 업데이트 실패:', error);
+    }
+  }, 1000);
+  
+  // KPI 업데이트 함수
+  async function updateKPIs() {
+    try {
+      const response = await fetch('{% url "api_portfolio_data" %}');
+      const data = await response.json();
+      
+      if (data.success) {
+        // 총자산 업데이트
+        const totalAssetElement = document.querySelector('.text-2xl.font-bold');
+        if (totalAssetElement) {
+          const totalAsset = totalAssetElement.textContent.split(' ')[0];
+          const dailyChange = totalAssetElement.querySelector('span');
+          if (dailyChange) {
+            const changePercent = ((data.data.total_return / data.data.total_value) * 100).toFixed(2);
+            const changeText = changePercent >= 0 ? `+${changePercent}%` : `${changePercent}%`;
+            dailyChange.textContent = `(${changeText})`;
+            dailyChange.className = changePercent >= 0 ? 'text-sm text-emerald-600' : 'text-sm text-rose-600';
+          }
+        }
+      }
+    } catch (error) {
+      console.log('KPI 업데이트 실패:', error);
+    }
+  }
 });
 </script>
 {% endblock %}

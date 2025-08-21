@@ -1,0 +1,126 @@
+{% extends 'base.html' %}
+{% block title %}실시간 주가 테스트{% endblock %}
+
+{% block body %}
+<div class="container mx-auto p-6">
+    <h1 class="text-2xl font-bold mb-6">실시간 주가 테스트</h1>
+    
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+        <div class="bg-white p-4 rounded-lg shadow">
+            <h3 class="font-semibold">삼성전자 (005930)</h3>
+            <div class="text-xl font-bold" id="price-005930">₩0</div>
+            <div class="text-sm" id="change-005930">0.00%</div>
+        </div>
+        
+        <div class="bg-white p-4 rounded-lg shadow">
+            <h3 class="font-semibold">SK하이닉스 (000660)</h3>
+            <div class="text-xl font-bold" id="price-000660">₩0</div>
+            <div class="text-sm" id="change-000660">0.00%</div>
+        </div>
+        
+        <div class="bg-white p-4 rounded-lg shadow">
+            <h3 class="font-semibold">LG화학 (051910)</h3>
+            <div class="text-xl font-bold" id="price-051910">₩0</div>
+            <div class="text-sm" id="change-051910">0.00%</div>
+        </div>
+    </div>
+    
+    <div class="bg-white p-4 rounded-lg shadow">
+        <h3 class="font-semibold mb-2">API 응답 로그</h3>
+        <div id="api-log" class="text-sm bg-gray-100 p-2 rounded h-32 overflow-y-auto"></div>
+    </div>
+    
+    <div class="mt-4">
+        <button onclick="testAPI()" class="bg-blue-500 text-white px-4 py-2 rounded">API 테스트</button>
+        <button onclick="startRealtimeUpdate()" class="bg-green-500 text-white px-4 py-2 rounded ml-2">실시간 업데이트 시작</button>
+        <button onclick="stopRealtimeUpdate()" class="bg-red-500 text-white px-4 py-2 rounded ml-2">실시간 업데이트 중지</button>
+    </div>
+</div>
+
+<script>
+let updateInterval = null;
+
+function log(message) {
+    const logDiv = document.getElementById('api-log');
+    const timestamp = new Date().toLocaleTimeString();
+    logDiv.innerHTML += `[${timestamp}] ${message}<br>`;
+    logDiv.scrollTop = logDiv.scrollHeight;
+}
+
+async function testAPI() {
+    try {
+        log('API 테스트 시작...');
+        const response = await fetch('/api/stocks/prices/');
+        log(`API 응답 상태: ${response.status}`);
+        
+        if (response.ok) {
+            const data = await response.json();
+            log(`API 응답 데이터: ${JSON.stringify(data).substring(0, 200)}...`);
+            
+            if (data.success) {
+                updateStockDisplay(data.data);
+            } else {
+                log(`API 오류: ${data.message}`);
+            }
+        } else {
+            log(`HTTP 오류: ${response.status}`);
+        }
+    } catch (error) {
+        log(`API 호출 실패: ${error.message}`);
+    }
+}
+
+function updateStockDisplay(stockData) {
+    Object.keys(stockData).forEach(ticker => {
+        const stock = stockData[ticker];
+        const priceElement = document.getElementById(`price-${ticker}`);
+        const changeElement = document.getElementById(`change-${ticker}`);
+        
+        if (priceElement && changeElement) {
+            priceElement.textContent = '₩' + stock.current_price.toLocaleString();
+            
+            const changeText = (stock.change_percent >= 0 ? '+' : '') + stock.change_percent.toFixed(2) + '%';
+            changeElement.textContent = changeText;
+            changeElement.className = `text-sm ${stock.change_percent >= 0 ? 'text-green-600' : 'text-red-600'}`;
+        }
+    });
+}
+
+function startRealtimeUpdate() {
+    if (updateInterval) {
+        log('이미 실행 중입니다.');
+        return;
+    }
+    
+    log('실시간 업데이트 시작 (1초마다)');
+    updateInterval = setInterval(async () => {
+        try {
+            const response = await fetch('/api/stocks/prices/');
+            if (response.ok) {
+                const data = await response.json();
+                if (data.success) {
+                    updateStockDisplay(data.data);
+                    log('주가 업데이트 완료');
+                }
+            }
+        } catch (error) {
+            log(`업데이트 실패: ${error.message}`);
+        }
+    }, 1000);
+}
+
+function stopRealtimeUpdate() {
+    if (updateInterval) {
+        clearInterval(updateInterval);
+        updateInterval = null;
+        log('실시간 업데이트 중지');
+    }
+}
+
+// 페이지 로드 시 자동으로 API 테스트
+document.addEventListener('DOMContentLoaded', () => {
+    log('페이지 로드됨');
+    setTimeout(testAPI, 1000);
+});
+</script>
+{% endblock %} 

@@ -31,12 +31,14 @@ urlpatterns = [
     path('trading/', sams_views.trading_view, name='trading'),
     path('realtime/', sams_views.realtime_dashboard, name='realtime'),
 
+
     # 기존 API endpoints
     path('api/portfolio/buy/', sams_views.buy_stock, name='api_buy_stock'),
     path('api/portfolio/sell/', sams_views.sell_stock, name='api_sell_stock'),
     path('api/portfolio/watchlist/add/', sams_views.add_to_watchlist, name='api_add_watchlist'),
     path('api/portfolio/watchlist/remove/', sams_views.remove_from_watchlist, name='api_remove_watchlist'),
     path('api/portfolio/data/', sams_views.get_portfolio_data, name='api_portfolio_data'),
+    path('api/stocks/prices/', sams_views.get_real_time_stock_prices, name='api_real_time_stock_prices'),
     
     # 새로운 거래 API 엔드포인트
     path('api/trading/buy/', sams_views.buy_stock_api, name='api_trading_buy'),

@@ -8,6 +8,7 @@ from django.views.decorators.http import require_POST
 from django.views.decorators.csrf import csrf_exempt
 from decimal import Decimal
 import json
+from datetime import datetime
 
 from .services import PortfolioService, StockService, SimulationService
 from .models import Stock
@@ -728,6 +729,38 @@ def get_portfolio_data(request):
         })
     except Exception as e:
         return JsonResponse({'success': False, 'message': f'포트폴리오 데이터 조회 중 오류가 발생했습니다: {str(e)}'})
+
+@login_required
+def get_real_time_stock_prices(request):
+    """실시간 주가 데이터 API"""
+    try:
+        from sams.models import Stock
+        
+        # 모든 주식의 현재 가격과 변동률 조회
+        stocks = Stock.objects.all()
+        stock_data = {}
+        
+        for stock in stocks:
+            stock_data[stock.ticker] = {
+                'name': stock.name,
+                'current_price': float(stock.current_price),
+                'price_change': float(stock.price_change),
+                'change_percent': float(stock.price_change),
+                'sector': stock.sector
+            }
+        
+        return JsonResponse({
+            'success': True,
+            'data': stock_data,
+            'timestamp': datetime.now().isoformat()
+        })
+    except Exception as e:
+        return JsonResponse({'success': False, 'message': f'실시간 주가 조회 중 오류가 발생했습니다: {str(e)}'})
+
+@login_required
+def test_realtime(request):
+    """실시간 주가 테스트 페이지"""
+    return render(request, 'app/test_realtime.html')
 
 # 백그라운드 시뮬레이션 제어 API들
 @login_required

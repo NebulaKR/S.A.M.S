@@ -283,9 +283,15 @@ class SimulationEngine:
 
                 print(f"[{self.simulation_time.strftime('%Y-%m-%d %H:%M')}] "
                       f"새로운 이벤트: {event.event_type} (영향도: {market_impact:.3f})")
+                
+                # 이벤트 발생 직후 해당 종목들의 주가 즉시 업데이트
+                print(f"[DEBUG] 이벤트 발생 직후 주가 즉시 업데이트 실행")
+                self._update_stock_prices()
 
         except Exception as e:
             print(f"이벤트 생성 중 오류: {e}")
+            import traceback
+            traceback.print_exc()
     
     def _generate_news_for_event(self, event_id: str):
         """이벤트에 대한 뉴스 기사 생성"""
@@ -409,6 +415,8 @@ class SimulationEngine:
     
     def _update_stock_prices(self):
         """주가 업데이트"""
+        print(f"[DEBUG] 주가 업데이트 시작 - {len(self.stocks)}개 종목")
+        
         for ticker, stock_data in self.stocks.items():
             # 최근 이벤트들의 영향을 종합
             recent_events = [e for e in self.events_history 
@@ -416,8 +424,10 @@ class SimulationEngine:
                            (self.simulation_time - e.timestamp).total_seconds() < 3600]  # 1시간 내 이벤트
             
             if recent_events:
+                print(f"[DEBUG] {ticker}: {len(recent_events)}개 이벤트 영향 발견")
                 # 이벤트들의 종합 영향도 계산
                 total_impact = sum(e.market_impact for e in recent_events)
+                print(f"[DEBUG] {ticker}: 총 영향도 = {total_impact:.4f}")
                 
                 # 코치 모델을 통한 가중치 조정
                 weights = self.coach.adjust_weights()
@@ -440,6 +450,8 @@ class SimulationEngine:
                 new_price = result["price"]
                 change_rate = result["delta"]
                 
+                print(f"[DEBUG] {ticker}: {old_price:.0f} → {new_price:.0f} (변동률: {change_rate*100:+.2f}%)")
+                
                 stock_data["price"] = new_price
                 stock_data["change_rate"] = change_rate
                 
@@ -451,8 +463,9 @@ class SimulationEngine:
                         stock_obj = Stock.objects.filter(ticker=ticker).first()
                         if stock_obj:
                             stock_obj.current_price = new_price
+                            stock_obj.price_change = change_rate * 100  # 퍼센트로 변환
                             stock_obj.save()
-                            print(f"[DB] {ticker} 주가 업데이트: {old_price:.0f} → {new_price:.0f}")
+                            print(f"[DB] {ticker} 주가 업데이트: {old_price:.0f} → {new_price:.0f} (변동률: {change_rate*100:+.2f}%)")
                 except Exception as e:
                     print(f"[DB] 주가 업데이트 실패 ({ticker}): {e}")
                 
@@ -467,6 +480,10 @@ class SimulationEngine:
                         timestamp=self.simulation_time
                     )
                     self.on_price_change(stock_price)
+            else:
+                print(f"[DEBUG] {ticker}: 영향받는 이벤트 없음")
+        
+        print(f"[DEBUG] 주가 업데이트 완료")
     
     def enable_news_generation(self, enable: bool = True):
         """뉴스 기사 생성 활성화/비활성화"""
