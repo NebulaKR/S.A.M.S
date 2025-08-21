@@ -2,6 +2,9 @@
 """
 SAMS 시뮬레이션 엔진 테스트 스크립트
 """
+from pathlib import Path
+import environ
+environ.Env.read_env(str(Path(__file__).resolve().parent / ".env"))
 
 import time
 import sys

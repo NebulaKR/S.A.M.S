@@ -27,3 +27,46 @@ SCENARIO_TEMPLATES = {
         }
     }
 }
+
+
+def get_initial_data():
+    """
+    시뮬레이션 엔진 초기화를 위한 기본 데이터 반환
+    
+    Returns:
+        Dict: 시뮬레이션 엔진이 요구하는 초기 데이터 구조
+    """
+    return {
+        "stocks": {
+            "005930": {"price": 79000, "volume": 1000000},  # 삼성전자
+            "000660": {"price": 45000, "volume": 500000},   # SK하이닉스
+            "035420": {"price": 120000, "volume": 300000},  # NAVER
+            "051910": {"price": 180000, "volume": 200000},  # LG화학
+            "006400": {"price": 35000, "volume": 400000},   # 삼성SDI
+            "035720": {"price": 95000, "volume": 250000},   # 카카오
+            "207940": {"price": 280000, "volume": 150000},  # 삼성바이오로직스
+            "068270": {"price": 55000, "volume": 350000},   # 셀트리온
+            "323410": {"price": 85000, "volume": 180000},   # 카카오뱅크
+            "373220": {"price": 42000, "volume": 220000},   # LG에너지솔루션
+        },
+        "market_params": {
+            "public": {
+                "risk_appetite": 0.3,
+                "news_sensitivity": 0.7
+            },
+            "government": {
+                "policy_direction": 0.2,
+                "interest_rate": 0.03,
+                "tax_policy": -0.1
+            },
+            "company": {
+                "orientation": 0.1,
+                "rnd_focus": 0.4,
+                "industry_match": 0.6
+            },
+            "media": {
+                "bias": 0.2,
+                "trust": 0.7
+            }
+        }
+    }

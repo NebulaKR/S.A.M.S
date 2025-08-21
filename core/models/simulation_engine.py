@@ -9,8 +9,8 @@ from core.models.announcer.announcer import Announcer
 from core.models.coach.coach import Coach
 from core.models.main_model import main_model
 from core.models.announcer.event import Event
-from core.models.announcer.news import News
-
+from core.models.announcer.news import News, Media
+from utils.logger import save_market_snapshot, save_event_log
 
 class SimulationSpeed(Enum):
     """시뮬레이션 속도 설정"""
@@ -82,6 +82,11 @@ class SimulationEngine:
         self.stocks = initial_data.get("stocks", {})
         self.market_params = initial_data.get("market_params", {})
         
+        # 디버깅을 위한 로그 출력
+        print(f"=== SimulationEngine 초기화 ===")
+        print(f"주식 종목 수: {len(self.stocks)}")
+        print(f"시장 파라미터: {json.dumps(self.market_params, indent=2, ensure_ascii=False)}")
+        
         # 시뮬레이션 시간 관리
         self.simulation_time = datetime.now()
         self.last_update = time.time()
@@ -99,10 +104,36 @@ class SimulationEngine:
         self.event_generation_interval = 300  # 5분마다 이벤트 생성
         self.last_event_generation = 0
         
+        # 언론사 설정
+        self.media_outlets = self._setup_media_outlets()
+        
+        # 뉴스 생성 설정
+        self._news_generation_enabled = True  # 뉴스 기사 생성 활성화 여부
+        
         # 콜백 함수들
         self.on_price_change = None
         self.on_event_occur = None
         self.on_news_update = None
+    
+    def _setup_media_outlets(self) -> List[Media]:
+        """언론사 설정"""
+        return [
+            Media(name="조선일보", bias=-0.8, credibility=0.7),      # 보수적
+            Media(name="중앙일보", bias=-0.6, credibility=0.8),      # 보수적
+            Media(name="한국일보", bias=-0.7, credibility=0.6),      # 보수적
+            Media(name="동아일보", bias=-0.5, credibility=0.7),      # 중도보수
+            Media(name="경향신문", bias=0.6, credibility=0.7),       # 진보적
+            Media(name="한겨레", bias=0.7, credibility=0.8),         # 진보적
+            Media(name="서울신문", bias=0.0, credibility=0.6),       # 중립
+            Media(name="매일경제", bias=0.0, credibility=0.8),       # 중립 (경제 전문)
+            Media(name="한국경제", bias=0.0, credibility=0.7),       # 중립 (경제 전문)
+            Media(name="이데일리", bias=0.0, credibility=0.6),       # 중립
+            Media(name="머니투데이", bias=0.0, credibility=0.7),     # 중립 (경제 전문)
+            Media(name="SBS", bias=0.0, credibility=0.8),            # 중립 (방송)
+            Media(name="KBS", bias=0.0, credibility=0.9),            # 중립 (방송)
+            Media(name="MBC", bias=0.1, credibility=0.8),            # 약간 진보 (방송)
+            Media(name="YTN", bias=0.0, credibility=0.7),            # 중립 (방송)
+        ]
     
     def start(self):
         """시뮬레이션 시작"""
@@ -159,24 +190,32 @@ class SimulationEngine:
     def _generate_events(self):
         """AI를 사용하여 새로운 이벤트 생성"""
         try:
-            # 과거 이벤트들을 컨텍스트로 사용
             past_events = [event.event for event in self.events_history[-5:]] if self.events_history else []
+
+            # 현재 시장 상태 정보 수집
+            current_market_state = self._get_current_market_state()
             
-            # 새로운 이벤트 생성
+            # 이벤트 생성에 사용할 추가 컨텍스트 정보
+            event_context = {
+                "simulation_time": self.simulation_time.isoformat(),
+                "market_state": current_market_state,
+                "market_params": self.market_params,
+                "total_events_generated": len(self.events_history),
+                "recent_price_changes": self._get_recent_price_changes(),
+                "market_volatility": self._calculate_market_volatility(),
+            }
+
             new_events = self.announcer.generate_events(
                 past_events=past_events,
                 count=1,
-                allowed_categories=["경제", "정책", "기업", "기술", "국제"]
+                allowed_categories=getattr(self, '_allowed_categories', ["경제", "정책", "기업", "기술", "국제"]),
+                market_context=event_context  # 새로운 컨텍스트 정보 전달
             )
-            
+
             for event in new_events:
-                # 이벤트의 시장 영향도 계산
                 market_impact = self._calculate_market_impact(event)
-                
-                # 영향받는 주식들 결정
                 affected_stocks = self._determine_affected_stocks(event)
-                
-                # 시뮬레이션 이벤트 생성
+
                 sim_event = SimulationEvent(
                     id=event.id,
                     event=event,
@@ -184,19 +223,99 @@ class SimulationEngine:
                     affected_stocks=affected_stocks,
                     market_impact=market_impact
                 )
-                
                 self.events_history.append(sim_event)
-                
-                # 콜백 호출
+
+                # 1) 이벤트 별도 저장 (프롬프트 컨텍스트용)
+                try:
+                    event_payload = {
+                        "id": event.id,
+                        "event_type": event.event_type,
+                        "category": event.category,
+                        "sentiment": float(event.sentiment),
+                        "impact_level": int(event.impact_level),
+                        "duration": getattr(event, "duration", None),
+                        "extra": getattr(event, "extra", None),
+                        "market_context": event_context,  # 시장 컨텍스트 정보 추가
+                    }
+                    save_event_log(
+                        sim_id=self._get_sim_id(),
+                        event_id=event.id,
+                        event_payload=event_payload,
+                        affected_stocks=affected_stocks,
+                        market_impact=market_impact,
+                        simulation_time=self.simulation_time,
+                        meta={
+                            "reason": "event_occurred",
+                            "market_state": current_market_state,
+                            "total_events": len(self.events_history)
+                        }
+                    )
+                except Exception as e:
+                    print(f"[persist] event log save failed: {e}")
+
+                # 2) '이벤트 발생 시점'의 시장 상태 스냅샷 저장 (이벤트 내용 미포함)
+                try:
+                    save_market_snapshot(
+                        sim_id=self._get_sim_id(),
+                        stocks=self.stocks,                        # 현재 종목 상태
+                        market_params=self.market_params,          # 현재 파라미터 묶음
+                        simulation_time=self.simulation_time,
+                        meta={
+                            "tick_like_time": self.simulation_time.isoformat(),
+                            "note": "snapshot at event occurrence",
+                            "market_state": current_market_state,
+                            "event_triggered": True
+                        }
+                    )
+                except Exception as e:
+                    print(f"[persist] snapshot save failed: {e}")
+
+                # 3) 이벤트에 대한 뉴스 기사 생성
+                if self._news_generation_enabled:
+                    try:
+                        self._generate_news_for_event(event.id)
+                    except Exception as e:
+                        print(f"[news] 뉴스 기사 생성 실패: {e}")
+
+                # 콜백
                 if self.on_event_occur:
                     self.on_event_occur(sim_event)
-                
+
                 print(f"[{self.simulation_time.strftime('%Y-%m-%d %H:%M')}] "
                       f"새로운 이벤트: {event.event_type} (영향도: {market_impact:.3f})")
-                
+
         except Exception as e:
             print(f"이벤트 생성 중 오류: {e}")
     
+    def _generate_news_for_event(self, event_id: str):
+        """이벤트에 대한 뉴스 기사 생성"""
+        try:
+            # 파이어스토어에서 이벤트 로그를 조회하여 뉴스 기사 생성
+            news_list = self.announcer.generate_news_for_event_from_firestore(
+                sim_id=self._get_sim_id(),
+                event_id=event_id,
+                outlets=self.media_outlets,
+                context_events_limit=5
+            )
+            
+            # 생성된 뉴스들을 히스토리에 추가
+            for news in news_list:
+                self.news_history.append(news)
+                
+                # 콜백 호출
+                if self.on_news_update:
+                    self.on_news_update(news)
+            
+            print(f"이벤트 {event_id}에 대한 뉴스 기사 {len(news_list)}개 생성 완료")
+            
+        except Exception as e:
+            print(f"뉴스 기사 생성 중 오류: {e}")
+    
+    # 시뮬레이션 ID를 정하는 규칙(예시) — 외부에서 주입받거나 생성 규칙에 맞게 구현
+    def _get_sim_id(self) -> str:
+        # 필요 시 __init__(initial_data)에 sim_id 전달해 멤버로 보관하는 방식 권장
+        return getattr(self, "sim_id", "default-sim")
+
     def _calculate_market_impact(self, event: Event) -> float:
         """이벤트의 시장 영향도 계산"""
         # 감정 점수와 영향 레벨을 기반으로 영향도 계산
@@ -336,6 +455,22 @@ class SimulationEngine:
                     )
                     self.on_price_change(stock_price)
     
+    def enable_news_generation(self, enable: bool = True):
+        """뉴스 기사 생성 활성화/비활성화"""
+        self._news_generation_enabled = enable
+        status = "활성화" if enable else "비활성화"
+        print(f"뉴스 기사 생성 {status}")
+    
+    def set_event_generation_interval(self, interval_seconds: int):
+        """이벤트 생성 간격 설정 (초 단위)"""
+        self.event_generation_interval = interval_seconds
+        print(f"이벤트 생성 간격: {interval_seconds}초")
+    
+    def set_allowed_categories(self, categories: List[str]):
+        """허용된 이벤트 카테고리 설정"""
+        self._allowed_categories = categories
+        print(f"허용된 카테고리: {categories}")
+    
     def get_current_state(self) -> Dict:
         """현재 시뮬레이션 상태 반환"""
         return {
@@ -370,3 +505,84 @@ class SimulationEngine:
             self.on_event_occur = callback
         elif event_type == "news_update":
             self.on_news_update = callback 
+
+    def _get_current_market_state(self) -> dict:
+        """현재 시장 상태 정보를 수집"""
+        try:
+            # 주가 변화율 계산
+            price_changes = {}
+            total_change = 0
+            total_volume = 0
+            
+            for ticker, stock_data in self.stocks.items():
+                base_price = stock_data.get("base_price", stock_data["price"])
+                current_price = stock_data["price"]
+                change_rate = (current_price - base_price) / base_price
+                volume = stock_data.get("volume", 0)
+                
+                price_changes[ticker] = {
+                    "current_price": current_price,
+                    "change_rate": change_rate,
+                    "volume": volume
+                }
+                total_change += change_rate
+                total_volume += volume
+            
+            # 시장 평균 변화율
+            avg_change = total_change / len(self.stocks) if self.stocks else 0
+            
+            # 시장 분위기 판단
+            market_sentiment = "neutral"
+            if avg_change > 0.02:  # 2% 이상 상승
+                market_sentiment = "bullish"
+            elif avg_change < -0.02:  # 2% 이상 하락
+                market_sentiment = "bearish"
+            
+            return {
+                "average_change_rate": avg_change,
+                "market_sentiment": market_sentiment,
+                "total_volume": total_volume,
+                "price_changes": price_changes,
+                "active_stocks_count": len(self.stocks),
+                "simulation_speed": self.speed.value,
+                "simulation_duration_hours": (self.simulation_time - self.simulation_start_time).total_seconds() / 3600 if self.simulation_start_time else 0
+            }
+        except Exception as e:
+            print(f"시장 상태 수집 중 오류: {e}")
+            return {}
+    
+    def _get_recent_price_changes(self) -> dict:
+        """최근 주가 변화 정보 수집"""
+        try:
+            recent_changes = {}
+            for ticker, stock_data in self.stocks.items():
+                change_rate = stock_data.get("change_rate", 0)
+                recent_changes[ticker] = {
+                    "change_rate": change_rate,
+                    "price": stock_data["price"],
+                    "volume": stock_data.get("volume", 0)
+                }
+            return recent_changes
+        except Exception as e:
+            print(f"최근 주가 변화 수집 중 오류: {e}")
+            return {}
+    
+    def _calculate_market_volatility(self) -> float:
+        """시장 변동성 계산"""
+        try:
+            if not self.stocks:
+                return 0.0
+            
+            changes = [stock_data.get("change_rate", 0) for stock_data in self.stocks.values()]
+            if not changes:
+                return 0.0
+            
+            # 표준편차 계산
+            mean_change = sum(changes) / len(changes)
+            variance = sum((x - mean_change) ** 2 for x in changes) / len(changes)
+            volatility = variance ** 0.5
+            
+            return volatility
+        except Exception as e:
+            print(f"시장 변동성 계산 중 오류: {e}")
+            return 0.0 

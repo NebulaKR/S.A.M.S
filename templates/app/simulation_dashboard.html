@@ -223,13 +223,13 @@
       <a href="{% url 'home' %}" class="block px-3 py-2 hover:bg-slate-50 rounded-lg">홈</a>
       <a href="{% url 'portfolio' %}" class="block px-3 py-2 bg-slate-100 rounded-lg">포트폴리오</a>
       <a href="{% url 'trading' %}" class="block px-3 py-2 hover:bg-slate-50 rounded-lg">거래</a>
-      <a class="block px-3 py-2 hover:bg-slate-50 rounded-lg">뉴스</a>
-      <a class="block px-3 py-2 hover:bg-slate-50 rounded-lg">설정</a>
+      <a href="{% url 'news' %}" class="block px-3 py-2 hover:bg-slate-50 rounded-lg">뉴스</a>
+      <a href="{% url 'admin' %}" class="block px-3 py-2 hover:bg-slate-50 rounded-lg">관리자</a>
     </nav>
   </aside>
 
   <main class="col-span-10 bg-slate-50 p-4 space-y-6">
-    <!-- 시뮬레이션 컨트롤 -->
+    <!-- 시뮬레이션 상태 표시 -->
     <div class="simulation-controls">
       <div class="flex items-center justify-between">
         <div>
@@ -240,27 +240,19 @@
           <div class="simulation-time" id="simulationTime">
             시뮬레이션 시간: 2025-08-20 14:24
           </div>
+          <div class="text-sm text-blue-200 mt-1">
+            <a href="{% url 'admin' %}" class="underline">관리자 대시보드에서 제어</a>
+          </div>
         </div>
       </div>
       
       <div class="flex items-center gap-4 mt-4">
-        <button id="startBtn" class="px-6 py-2 bg-green-500 hover:bg-green-600 rounded-lg font-semibold transition-colors">
-          시작
-        </button>
-        <button id="pauseBtn" class="px-6 py-2 bg-yellow-500 hover:bg-yellow-600 rounded-lg font-semibold transition-colors" disabled>
-          일시정지
-        </button>
-        <button id="stopBtn" class="px-6 py-2 bg-red-500 hover:bg-red-600 rounded-lg font-semibold transition-colors" disabled>
-          정지
-        </button>
-      </div>
-      
-      <div class="speed-controls">
-        <span class="text-sm font-medium">시뮬레이션 속도:</span>
-        <button class="speed-btn active" data-speed="1">1x</button>
-        <button class="speed-btn" data-speed="2">2x</button>
-        <button class="speed-btn" data-speed="5">5x</button>
-        <button class="speed-btn" data-speed="10">10x</button>
+        <div class="px-6 py-2 bg-gray-500 rounded-lg font-semibold text-white">
+          관리자 전용 제어
+        </div>
+        <div class="text-sm text-blue-200">
+          시뮬레이션 시작/정지는 관리자 대시보드에서만 가능합니다.
+        </div>
       </div>
     </div>
 
@@ -672,6 +664,129 @@ let simulationSpeed = 2;
 let simulationStartTime = null;
 let priceHistory = {};
 let eventCount = 0;
+let currentSimulationId = 'default-sim';
+
+// 파이어베이스 데이터 가져오기
+async function fetchSimulationData() {
+    try {
+        // 시뮬레이션 상태 조회
+        const statusResponse = await fetch(`/api/simulation/status/?simulation_id=${currentSimulationId}`);
+        const statusData = await statusResponse.json();
+        
+        if (statusData.success && statusData.data.status === 'active') {
+            // 최근 이벤트 조회
+            const eventsResponse = await fetch(`/api/simulation/events/?simulation_id=${currentSimulationId}&limit=10`);
+            const eventsData = await eventsResponse.json();
+            
+            if (eventsData.success) {
+                updateEventFeed(eventsData.data.events);
+                eventCount = eventsData.data.total_count;
+                document.getElementById('totalEvents').textContent = eventCount;
+            }
+            
+            // 시장 요약 정보 조회
+            const marketResponse = await fetch(`/api/simulation/market-summary/?simulation_id=${currentSimulationId}`);
+            const marketData = await marketResponse.json();
+            
+            if (marketData.success) {
+                updateMarketStats(marketData.data);
+            }
+        }
+    } catch (error) {
+        console.error('시뮬레이션 데이터 조회 실패:', error);
+    }
+}
+
+// 이벤트 피드 업데이트
+function updateEventFeed(events) {
+    const feed = document.getElementById('eventFeed');
+    feed.innerHTML = '';
+    
+    if (events.length === 0) {
+        feed.innerHTML = '<div class="text-center text-slate-500 py-8">시뮬레이션을 시작하면 AI 이벤트가 생성됩니다</div>';
+        return;
+    }
+    
+    events.forEach(event => {
+        const eventDiv = document.createElement('div');
+        
+        const sentimentClass = event.sentiment > 0 ? 'event-positive' : 
+                              event.sentiment < 0 ? 'event-negative' : 'event-neutral';
+        
+        const sentimentText = event.sentiment > 0 ? '긍정' : 
+                             event.sentiment < 0 ? '부정' : '중립';
+        
+        eventDiv.className = `event-item ${sentimentClass}`;
+        eventDiv.innerHTML = `
+            <div class="flex justify-between items-start">
+                <div>
+                    <div class="font-medium">${event.event_type}</div>
+                    <div class="text-sm text-slate-600 mt-1">${event.category} | ${sentimentText}</div>
+                </div>
+                <div class="text-xs text-slate-500">${formatTime(event.created_at)}</div>
+            </div>
+            <div class="text-sm text-slate-700 mt-2">영향도: ${event.impact_level}/5 | 시장 영향: ${(event.market_impact * 100).toFixed(1)}%</div>
+            <div class="flex gap-2 mt-2">
+                <span class="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded">영향도: ${event.impact_level}</span>
+                <span class="px-2 py-1 bg-green-100 text-green-800 text-xs rounded">${event.affected_stocks.join(', ')}</span>
+            </div>
+        `;
+        
+        feed.appendChild(eventDiv);
+    });
+}
+
+// 시장 통계 업데이트
+function updateMarketStats(marketData) {
+    if (marketData.average_sentiment !== undefined) {
+        const sentimentElement = document.getElementById('marketSentiment');
+        if (sentimentElement) {
+            const sentimentText = marketData.average_sentiment > 0 ? '긍정' : 
+                                 marketData.average_sentiment < 0 ? '부정' : '중립';
+            sentimentElement.textContent = sentimentText;
+        }
+    }
+    
+    if (marketData.market_volatility !== undefined) {
+        document.getElementById('marketVolatility').textContent = 
+            (marketData.market_volatility * 100).toFixed(1) + '%';
+    }
+    
+    if (marketData.total_events !== undefined) {
+        document.getElementById('totalEvents').textContent = marketData.total_events;
+    }
+}
+
+// 시간 포맷팅
+function formatTime(timestamp) {
+    if (!timestamp) return '';
+    const date = new Date(timestamp);
+    return date.toLocaleTimeString('ko-KR', { 
+        hour: '2-digit', 
+        minute: '2-digit',
+        second: '2-digit'
+    });
+}
+
+// 뉴스 피드 조회
+async function fetchNewsFeed() {
+    try {
+        const response = await fetch(`/api/simulation/news/?simulation_id=${currentSimulationId}&limit=5`);
+        const data = await response.json();
+        
+        if (data.success) {
+            updateNewsFeed(data.data.news_feed);
+        }
+    } catch (error) {
+        console.error('뉴스 피드 조회 실패:', error);
+    }
+}
+
+// 뉴스 피드 업데이트
+function updateNewsFeed(newsFeed) {
+    // 뉴스 피드가 있다면 표시 (필요시 구현)
+    console.log('뉴스 피드:', newsFeed);
+}
 
 // 차트 초기화
 const ctx = document.getElementById('priceChart');
@@ -704,20 +819,6 @@ const priceChart = new Chart(ctx, {
         }
     }
 });
-
-// 주식 데이터 초기화 (주요 종목만)
-const stocks = {
-    '005930': { name: '삼성전자', price: 79000, change: 0, sector: '반도체' },
-    '000660': { name: 'SK하이닉스', price: 45000, change: 0, sector: '반도체' },
-    '005380': { name: '현대차', price: 180000, change: 0, sector: '자동차' },
-    '005490': { name: '기아', price: 85000, change: 0, sector: '자동차' },
-    '035420': { name: 'NAVER', price: 220000, change: 0, sector: '인터넷' },
-    '051910': { name: 'LG화학', price: 520000, change: 0, sector: '화학' },
-    '006400': { name: '삼성SDI', price: 380000, change: 0, sector: '화학' },
-    '055550': { name: '신한지주', price: 45000, change: 0, sector: '금융' },
-    '086790': { name: '하나금융지주', price: 42000, change: 0, sector: '금융' },
-    '035720': { name: '카카오', price: 45000, change: 0, sector: '인터넷' }
-};
 
 // 섹터별 필터링
 function filterBySector(sector) {
@@ -756,208 +857,9 @@ function toggleSector(sectorName) {
     }
 }
 
-// 주식 카드 업데이트
-function updateStockCards() {
-    Object.entries(stocks).forEach(([ticker, stock]) => {
-        const card = document.querySelector(`[data-ticker="${ticker}"]`);
-        if (card) {
-            const priceElement = card.querySelector('.font-bold.text-lg');
-            const changeElement = card.querySelector('.text-sm');
-            
-            if (priceElement) priceElement.textContent = `₩${stock.price.toLocaleString()}`;
-            if (changeElement) {
-                const changePercent = (stock.change * 100).toFixed(2);
-                changeElement.textContent = `${stock.change > 0 ? '+' : ''}${changePercent}%`;
-                changeElement.className = `text-sm ${stock.change > 0 ? 'text-green-600' : stock.change < 0 ? 'text-red-600' : 'text-slate-600'}`;
-            }
-            
-            // 카드 스타일 업데이트
-            card.className = `stock-card ${stock.change > 0 ? 'up' : stock.change < 0 ? 'down' : 'neutral'}`;
-        }
-    });
-}
-
-// 이벤트 추가
-function addEvent(event) {
-    const feed = document.getElementById('eventFeed');
-    const eventDiv = document.createElement('div');
-    
-    const sentimentClass = event.sentiment > 0 ? 'event-positive' : 
-                          event.sentiment < 0 ? 'event-negative' : 'event-neutral';
-    
-    eventDiv.className = `event-item ${sentimentClass}`;
-    eventDiv.innerHTML = `
-        <div class="flex justify-between items-start">
-            <div>
-                <div class="font-medium">${event.title}</div>
-                <div class="text-sm text-slate-600 mt-1">${event.category}</div>
-            </div>
-            <div class="text-xs text-slate-500">${event.time}</div>
-        </div>
-        <div class="text-sm text-slate-700 mt-2">${event.description}</div>
-        <div class="flex gap-2 mt-2">
-            <span class="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded">영향도: ${event.impact}</span>
-            <span class="px-2 py-1 bg-green-100 text-green-800 text-xs rounded">${event.affectedStocks.join(', ')}</span>
-        </div>
-    `;
-    
-    feed.insertBefore(eventDiv, feed.firstChild);
-    
-    // 최대 10개까지만 표시
-    if (feed.children.length > 10) {
-        feed.removeChild(feed.lastChild);
-    }
-    
-    eventCount++;
-    document.getElementById('totalEvents').textContent = eventCount;
-}
-
-// 가상 이벤트 생성 (테스트용)
-function generateMockEvent() {
-    const events = [
-        // 반도체/기술
-        {
-            title: 'AI 칩 수요 폭증, 반도체 업계 강세',
-            category: '기술',
-            sentiment: 0.8,
-            impact: '높음',
-            affectedStocks: ['005930', '000660', '011070'],
-            description: 'AI 서버 수요 증가로 반도체 업계 전망 밝아짐',
-            time: new Date().toLocaleTimeString()
-        },
-        // 자동차
-        {
-            title: '정부, 친환경차 보조금 확대 검토',
-            category: '정책',
-            sentiment: 0.6,
-            impact: '중간',
-            affectedStocks: ['005380', '005490'],
-            description: '전기차 보조금 확대로 자동차 업계 호재',
-            time: new Date().toLocaleTimeString()
-        },
-        // 금융
-        {
-            title: '글로벌 금리 인하 기대감 확산',
-            category: '경제',
-            sentiment: 0.4,
-            impact: '높음',
-            affectedStocks: ['055550', '086790', '105560', '138930'],
-            description: '미국 연준의 금리 인하 기대감으로 금융주 강세',
-            time: new Date().toLocaleTimeString()
-        },
-        // 바이오
-        {
-            title: '신약 개발 성공, 바이오 업계 상승',
-            category: '바이오',
-            sentiment: 0.9,
-            impact: '높음',
-            affectedStocks: ['068270', '207940'],
-            description: '치료 난치성 질환 신약 개발 성공으로 바이오 업계 급등',
-            time: new Date().toLocaleTimeString()
-        },
-        // 인터넷/플랫폼
-        {
-            title: '디지털 전환 가속화, 플랫폼 업계 성장',
-            category: '기술',
-            sentiment: 0.7,
-            impact: '중간',
-            affectedStocks: ['035420', '035720', '323410'],
-            description: '기업들의 디지털 전환 가속화로 플랫폼 업계 성장',
-            time: new Date().toLocaleTimeString()
-        },
-        // 화학/에너지
-        {
-            title: '친환경 에너지 정책 확대',
-            category: '정책',
-            sentiment: 0.6,
-            impact: '중간',
-            affectedStocks: ['006400', '373220', '096770'],
-            description: '정부의 친환경 에너지 정책 확대로 관련 업계 호재',
-            time: new Date().toLocaleTimeString()
-        },
-        // 건설/조선
-        {
-            title: '해외 수주 확대, 조선업계 호조',
-            category: '경제',
-            sentiment: 0.5,
-            impact: '중간',
-            affectedStocks: ['009540', '010140', '028260'],
-            description: '중동 지역 수주 확대로 조선/건설업계 호조',
-            time: new Date().toLocaleTimeString()
-        },
-        // 방산
-        {
-            title: '국방 예산 증액, 방산업계 성장',
-            category: '정책',
-            sentiment: 0.7,
-            impact: '중간',
-            affectedStocks: ['012450', '009540', '010140'],
-            description: '국방 예산 증액으로 방산업계 성장 전망',
-            time: new Date().toLocaleTimeString()
-        },
-        // 통신
-        {
-            title: '5G 인프라 확충, 통신업계 투자 확대',
-            category: '기술',
-            sentiment: 0.5,
-            impact: '중간',
-            affectedStocks: ['017670', '030200'],
-            description: '정부의 5G 인프라 확충 정책으로 통신업계 투자 확대',
-            time: new Date().toLocaleTimeString()
-        },
-        // 전력/공공
-        {
-            title: '전력 요금 인상, 공공요금 정책 변화',
-            category: '정책',
-            sentiment: -0.3,
-            impact: '높음',
-            affectedStocks: ['015760', '096770'],
-            description: '전력 요금 인상으로 공공요금 정책 변화',
-            time: new Date().toLocaleTimeString()
-        }
-    ];
-    
-    const randomEvent = events[Math.floor(Math.random() * events.length)];
-    addEvent(randomEvent);
-}
-
-// 주가 업데이트 (가상)
-function updateStockPrices() {
-    Object.keys(stocks).forEach(ticker => {
-        const stock = stocks[ticker];
-        const change = (Math.random() - 0.5) * 0.02; // ±1% 변화
-        const oldPrice = stock.price;
-        stock.price = Math.round(stock.price * (1 + change));
-        stock.change = change;
-        
-        // 차트 데이터 업데이트
-        if (!priceHistory[ticker]) {
-            priceHistory[ticker] = [];
-        }
-        
-        priceHistory[ticker].push({
-            time: new Date().toLocaleTimeString(),
-            price: stock.price
-        });
-        
-        // 최대 20개 데이터 포인트만 유지
-        if (priceHistory[ticker].length > 20) {
-            priceHistory[ticker].shift();
-        }
-    });
-    
-    updateStockCards();
-    updateChart();
-}
-
-// 차트 업데이트
-function updateChart() {
-    const selectedStock = document.getElementById('chartStock').value;
-    const data = priceHistory[selectedStock] || [];
-    
-    priceChart.data.labels = data.map(d => d.time);
-    priceChart.data.datasets[0].data = data.map(d => d.price);
-    priceChart.update();
+// 시뮬레이션 상태는 관리자 대시보드에서만 제어 가능
+function showAdminControlMessage() {
+    alert('시뮬레이션 제어는 관리자 대시보드에서만 가능합니다.');
 }
 
 // 시뮬레이션 시간 업데이트
@@ -973,62 +875,11 @@ function updateSimulationTime() {
     }
 }
 
-// 시뮬레이션 시작
-function startSimulation() {
-    simulationState = 'running';
-    simulationStartTime = Date.now();
-    
-    document.getElementById('startBtn').disabled = true;
-    document.getElementById('pauseBtn').disabled = false;
-    document.getElementById('stopBtn').disabled = false;
-    
-    // 주기적으로 업데이트
-    simulationInterval = setInterval(() => {
-        updateStockPrices();
-        updateSimulationTime();
-        
-        // 랜덤하게 이벤트 생성
-        if (Math.random() < 0.3) {
-            generateMockEvent();
-        }
-    }, 2000);
-}
-
-// 시뮬레이션 일시정지
-function pauseSimulation() {
-    simulationState = 'paused';
-    clearInterval(simulationInterval);
-    
-    document.getElementById('startBtn').disabled = false;
-    document.getElementById('pauseBtn').disabled = true;
-}
-
-// 시뮬레이션 정지
-function stopSimulation() {
-    simulationState = 'stopped';
-    clearInterval(simulationInterval);
-    simulationStartTime = null;
-    
-    document.getElementById('startBtn').disabled = false;
-    document.getElementById('pauseBtn').disabled = true;
-    document.getElementById('stopBtn').disabled = true;
-    
-    document.getElementById('simulationTime').textContent = '시뮬레이션 시간: 2025-08-20 14:24';
-    document.getElementById('simulationHours').textContent = '0';
-}
-
-// 이벤트 리스너
-document.getElementById('startBtn').addEventListener('click', startSimulation);
-document.getElementById('pauseBtn').addEventListener('click', pauseSimulation);
-document.getElementById('stopBtn').addEventListener('click', stopSimulation);
-
-// 속도 변경
-document.querySelectorAll('.speed-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-        document.querySelectorAll('.speed-btn').forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-        simulationSpeed = parseInt(btn.dataset.speed);
-    });
+// 이벤트 리스너 (관리자 제어 안내)
+document.addEventListener('click', function(e) {
+    if (e.target.closest('.simulation-controls .control-btn')) {
+        showAdminControlMessage();
+    }
 });
 
 // 섹터 필터링
@@ -1042,19 +893,22 @@ document.querySelectorAll('.sector-filter-btn').forEach(btn => {
 // 차트 종목 변경
 document.getElementById('chartStock').addEventListener('change', updateChart);
 
-// 초기화
-updateStockCards();
-updateChart();
+// 차트 업데이트 (기본 구현)
+function updateChart() {
+    // 차트 업데이트 로직 (필요시 구현)
+}
 
-// 시뮬레이션 통계 업데이트
-setInterval(() => {
-    if (simulationState === 'running') {
-        const volatility = Math.random() * 5 + 1;
-        document.getElementById('marketVolatility').textContent = volatility.toFixed(1) + '%';
-        
-        const aiActivity = Math.floor(Math.random() * 10) + 1;
-        document.getElementById('aiActivity').textContent = aiActivity;
-    }
-}, 5000);
+// 초기 데이터 로드
+document.addEventListener('DOMContentLoaded', function() {
+    fetchSimulationData();
+    fetchNewsFeed();
+    
+    // 주기적으로 데이터 새로고침 (시뮬레이션 중이 아닐 때)
+    setInterval(() => {
+        if (simulationState !== 'running') {
+            fetchSimulationData();
+        }
+    }, 30000); // 30초마다
+});
 </script>
 {% endblock %} 

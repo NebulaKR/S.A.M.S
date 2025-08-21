@@ -1,330 +1,343 @@
-from decimal import Decimal
-from django.db import transaction
 from django.contrib.auth.models import User
+from django.db import transaction
+from decimal import Decimal
+import json
+import threading
+import time
+from datetime import datetime
 from .models import Portfolio, Stock, Position, Transaction, Watchlist
+from core.models.simulation_engine import SimulationEngine
+from data.parameter_templates import get_initial_data
+from utils.logger import save_event_log, save_market_snapshot
 
 
 class PortfolioService:
-    """포트폴리오 관리 서비스"""
-    
     @staticmethod
-    def get_or_create_portfolio(user: User) -> Portfolio:
-        """사용자의 포트폴리오를 가져오거나 생성"""
-        portfolio, created = Portfolio.objects.get_or_create(
-            user=user,
-            defaults={
-                'name': f'{user.username}의 포트폴리오',
-                'initial_balance': Decimal('10000000'),  # 1천만원
-                'current_balance': Decimal('10000000')
+    def get_portfolio_summary(user):
+        """사용자의 포트폴리오 요약 정보를 반환합니다."""
+        try:
+            portfolio = Portfolio.objects.get(user=user)
+            positions = portfolio.positions.all()
+            
+            total_stock_value = sum(position.current_value for position in positions)
+            total_value = portfolio.current_balance + total_stock_value
+            
+            return {
+                'total_value': float(total_value),
+                'cash_balance': float(portfolio.current_balance),
+                'stock_value': float(total_stock_value),
+                'total_return': float(portfolio.total_return),
+                'cash_ratio': float(portfolio.cash_ratio),
+                'positions': []
             }
-        )
-        return portfolio
+        except Portfolio.DoesNotExist:
+            return {
+                'total_value': 0.0,
+                'cash_balance': 0.0,
+                'stock_value': 0.0,
+                'total_return': 0.0,
+                'cash_ratio': 100.0,
+                'positions': []
+            }
     
     @staticmethod
-    def buy_stock(user: User, ticker: str, quantity: int, price: Decimal) -> dict:
-        """주식 매수"""
-        with transaction.atomic():
-            portfolio = PortfolioService.get_or_create_portfolio(user)
-            stock = Stock.objects.get(ticker=ticker)
-            
-            # 매수 금액 계산
-            total_amount = quantity * price
-            
-            # 잔고 확인
-            if portfolio.current_balance < total_amount:
-                raise ValueError("잔고가 부족합니다")
-            
-            # 거래 전 잔고
-            balance_before = portfolio.current_balance
-            
-            # 잔고 차감
-            portfolio.current_balance -= total_amount
-            portfolio.save()
-            
-            # 거래 후 잔고
-            balance_after = portfolio.current_balance
-            
-            # 포지션 생성 또는 업데이트
-            position, created = Position.objects.get_or_create(
-                portfolio=portfolio,
-                stock=stock,
-                defaults={
-                    'quantity': quantity,
-                    'average_price': price
-                }
-            )
-            
-            if not created:
-                # 기존 포지션이 있는 경우 평균 매수가 계산
-                total_quantity = position.quantity + quantity
-                total_cost = (position.quantity * position.average_price) + total_amount
-                position.quantity = total_quantity
-                position.average_price = total_cost / total_quantity
+    def buy_stock(user, ticker, quantity, price):
+        """주식 매수 처리"""
+        try:
+            with transaction.atomic():
+                stock = Stock.objects.get(ticker=ticker)
+                portfolio, created = Portfolio.objects.get_or_create(user=user)
+                
+                total_cost = price * quantity
+                
+                if portfolio.current_balance < total_cost:
+                    return {'success': False, 'message': '잔액이 부족합니다.'}
+                
+                # 기존 포지션이 있는지 확인
+                position, created = portfolio.positions.get_or_create(
+                    stock=stock,
+                    defaults={'quantity': 0, 'average_price': Decimal('0')}
+                )
+                
+                if created:
+                    # 새로운 포지션
+                    position.quantity = quantity
+                    position.average_price = price
+                else:
+                    # 기존 포지션 업데이트
+                    total_quantity = position.quantity + quantity
+                    total_cost_before = position.average_price * position.quantity
+                    total_cost_after = total_cost_before + total_cost
+                    position.average_price = total_cost_after / total_quantity
+                    position.quantity = total_quantity
+                
                 position.save()
-            
-            # 거래 내역 기록
-            Transaction.objects.create(
-                portfolio=portfolio,
-                transaction_type='BUY',
-                stock=stock,
-                quantity=quantity,
-                price=price,
-                amount=total_amount,
-                balance_before=balance_before,
-                balance_after=balance_after
-            )
+                portfolio.current_balance -= total_cost
+                portfolio.save()
             
             return {
                 'success': True,
                 'message': f'{stock.name} {quantity}주 매수 완료',
-                'position': position,
-                'new_balance': balance_after
+                'total_cost': float(total_cost),
+                'remaining_balance': float(portfolio.current_balance)
             }
+                
+        except Stock.DoesNotExist:
+            return {'success': False, 'message': '존재하지 않는 종목입니다.'}
+        except Exception as e:
+            return {'success': False, 'message': f'매수 처리 중 오류가 발생했습니다: {str(e)}'}
     
     @staticmethod
-    def sell_stock(user: User, ticker: str, quantity: int, price: Decimal) -> dict:
-        """주식 매도"""
-        with transaction.atomic():
-            portfolio = PortfolioService.get_or_create_portfolio(user)
-            stock = Stock.objects.get(ticker=ticker)
-            
-            # 포지션 확인
-            try:
-                position = Position.objects.get(portfolio=portfolio, stock=stock)
-            except Position.DoesNotExist:
-                raise ValueError("보유하지 않은 주식입니다")
-            
-            # 보유 수량 확인
-            if position.quantity < quantity:
-                raise ValueError("보유 수량이 부족합니다")
-            
-            # 매도 금액 계산
-            total_amount = quantity * price
-            
-            # 거래 전 잔고
-            balance_before = portfolio.current_balance
-            
-            # 잔고 증가
-            portfolio.current_balance += total_amount
-            portfolio.save()
-            
-            # 거래 후 잔고
-            balance_after = portfolio.current_balance
-            
-            # 포지션 업데이트
-            if position.quantity == quantity:
-                # 전량 매도
-                position.delete()
-            else:
-                # 부분 매도
+    def sell_stock(user, ticker, quantity, price):
+        """주식 매도 처리"""
+        try:
+            with transaction.atomic():
+                stock = Stock.objects.get(ticker=ticker)
+                portfolio = Portfolio.objects.get(user=user)
+                
+                try:
+                    position = portfolio.positions.get(stock=stock)
+                except portfolio.positions.model.DoesNotExist:
+                    return {'success': False, 'message': '보유하지 않은 종목입니다.'}
+                
+                if position.quantity < quantity:
+                    return {'success': False, 'message': '보유 수량이 부족합니다.'}
+                
+                total_revenue = price * quantity
+                realized_pnl = (price - position.average_price) * quantity
+                
+                # 포지션 업데이트
                 position.quantity -= quantity
-                position.save()
-            
-            # 거래 내역 기록
-            Transaction.objects.create(
-                portfolio=portfolio,
-                transaction_type='SELL',
-                stock=stock,
-                quantity=quantity,
-                price=price,
-                amount=total_amount,
-                balance_before=balance_before,
-                balance_after=balance_after
-            )
+                if position.quantity == 0:
+                    position.delete()
+                else:
+                    position.save()
+                
+                portfolio.current_balance += total_revenue
+                portfolio.save()
             
             return {
                 'success': True,
                 'message': f'{stock.name} {quantity}주 매도 완료',
-                'new_balance': balance_after
+                'total_revenue': float(total_revenue),
+                'realized_pnl': float(realized_pnl),
+                'remaining_balance': float(portfolio.current_balance)
             }
+                
+        except Stock.DoesNotExist:
+            return {'success': False, 'message': '존재하지 않는 종목입니다.'}
+        except Portfolio.DoesNotExist:
+            return {'success': False, 'message': '포트폴리오가 없습니다.'}
+        except Exception as e:
+            return {'success': False, 'message': f'매도 처리 중 오류가 발생했습니다: {str(e)}'}
     
     @staticmethod
-    def get_portfolio_summary(user: User) -> dict:
-        """포트폴리오 요약 정보"""
-        portfolio = PortfolioService.get_or_create_portfolio(user)
-        positions = portfolio.positions.all()
-        
-        # 주식별 상세 정보
-        stock_details = []
-        total_stock_value = Decimal('0')
-        total_unrealized_pnl = Decimal('0')
-        
-        for position in positions:
-            stock_value = position.current_value
-            unrealized_pnl = position.unrealized_pnl
-            
-            stock_details.append({
-                'ticker': position.stock.ticker,
-                'name': position.stock.name,
-                'quantity': position.quantity,
-                'average_price': position.average_price,
-                'current_price': position.stock.current_price,
-                'current_value': stock_value,
-                'unrealized_pnl': unrealized_pnl,
-                'unrealized_pnl_percent': position.unrealized_pnl_percent,
-                'weight': (stock_value / portfolio.total_value * 100) if portfolio.total_value > 0 else 0
-            })
-            
-            total_stock_value += stock_value
-            total_unrealized_pnl += unrealized_pnl
-        
-        return {
-            'portfolio': portfolio,
-            'total_value': portfolio.total_value,
-            'total_return': portfolio.total_return,
-            'cash_balance': portfolio.current_balance,
-            'cash_ratio': portfolio.cash_ratio,
-            'stock_value': total_stock_value,
-            'unrealized_pnl': total_unrealized_pnl,
-            'positions': stock_details,
-            'recent_transactions': portfolio.transactions.all()[:10]
-        }
-    
-    @staticmethod
-    def add_to_watchlist(user: User, ticker: str) -> dict:
-        """관심종목 추가"""
-        stock = Stock.objects.get(ticker=ticker)
-        watchlist, created = Watchlist.objects.get_or_create(
-            user=user,
-            stock=stock
-        )
-        
-        if created:
-            return {
-                'success': True,
-                'message': f'{stock.name}이 관심종목에 추가되었습니다'
-            }
-        else:
-            return {
-                'success': False,
-                'message': f'{stock.name}은 이미 관심종목에 있습니다'
-            }
-    
-    @staticmethod
-    def remove_from_watchlist(user: User, ticker: str) -> dict:
-        """관심종목 제거"""
+    def get_watchlist(user):
+        """사용자의 관심종목 목록을 반환합니다."""
         try:
-            watchlist = Watchlist.objects.get(user=user, stock__ticker=ticker)
-            stock_name = watchlist.stock.name
-            watchlist.delete()
+            watchlist = Watchlist.objects.get(user=user)
+            return [{'ticker': item.ticker, 'name': item.name} for item in watchlist.stocks.all()]
+        except Watchlist.DoesNotExist:
+            return []
+    
+    @staticmethod
+    def add_to_watchlist(user, ticker):
+        """관심종목에 추가"""
+        try:
+            stock = Stock.objects.get(ticker=ticker)
+            watchlist, created = Watchlist.objects.get_or_create(user=user)
+            watchlist.stocks.add(stock)
             
             return {
                 'success': True,
-                'message': f'{stock_name}이 관심종목에서 제거되었습니다'
+                'message': f'{stock.name}이(가) 관심종목에 추가되었습니다.'
             }
-        except Watchlist.DoesNotExist:
-            return {
-                'success': False,
-                'message': '관심종목에 없는 주식입니다'
-            }
+        except Stock.DoesNotExist:
+            return {'success': False, 'message': '존재하지 않는 종목입니다.'}
+        except Exception as e:
+            return {'success': False, 'message': f'관심종목 추가 중 오류가 발생했습니다: {str(e)}'}
     
     @staticmethod
-    def get_watchlist(user: User) -> list:
-        """관심종목 목록"""
-        watchlists = Watchlist.objects.filter(user=user).select_related('stock')
-        
-        watchlist_data = []
-        for watchlist in watchlists:
-            stock = watchlist.stock
-            watchlist_data.append({
-                'ticker': stock.ticker,
-                'name': stock.name,
-                'current_price': stock.current_price,
-                'price_change': stock.price_change,
-                'sector': stock.sector,
-                'added_at': watchlist.added_at
-            })
-        
-        return watchlist_data
+    def remove_from_watchlist(user, ticker):
+        """관심종목에서 제거"""
+        try:
+            stock = Stock.objects.get(ticker=ticker)
+            watchlist = Watchlist.objects.get(user=user)
+            watchlist.stocks.remove(stock)
+            
+            return {
+                'success': True,
+                'message': f'{stock.name}이(가) 관심종목에서 제거되었습니다.'
+            }
+        except Stock.DoesNotExist:
+            return {'success': False, 'message': '존재하지 않는 종목입니다.'}
+        except Watchlist.DoesNotExist:
+            return {'success': False, 'message': '관심종목이 없습니다.'}
+        except Exception as e:
+            return {'success': False, 'message': f'관심종목 제거 중 오류가 발생했습니다: {str(e)}'}
 
 
 class StockService:
-    """주식 관리 서비스"""
-    
     @staticmethod
-    def get_all_stocks() -> list:
-        """모든 주식 정보"""
+    def get_all_stocks():
+        """모든 주식 정보를 반환합니다."""
         stocks = Stock.objects.all()
-        
-        stock_data = []
-        for stock in stocks:
-            stock_data.append({
-                'ticker': stock.ticker,
-                'name': stock.name,
-                'sector': stock.sector,
-                'current_price': stock.current_price,
-                'base_price': stock.base_price,
-                'price_change': stock.price_change,
-                'updated_at': stock.updated_at
-            })
-        
-        return stock_data
+        return [{
+            'ticker': stock.ticker,
+            'name': stock.name,
+            'current_price': float(stock.current_price),
+            'change': float(stock.current_price - stock.base_price),
+            'change_percent': float(stock.price_change)
+        } for stock in stocks]
+
+
+class SimulationService:
+    """시뮬레이션 관리 서비스"""
     
-    @staticmethod
-    def update_stock_price(ticker: str, new_price: Decimal) -> bool:
-        """주식 가격 업데이트"""
+    _active_simulations = {}  # 시뮬레이션 인스턴스 관리
+    
+    @classmethod
+    def start_simulation(cls, simulation_id, settings):
+        """시뮬레이션 시작"""
         try:
-            stock = Stock.objects.get(ticker=ticker)
-            stock.current_price = new_price
-            stock.save()
-            return True
-        except Stock.DoesNotExist:
-            return False
-    
-    @staticmethod
-    def initialize_stocks() -> bool:
-        """초기 주식 데이터 생성 - 한국 주식 거래량 상위 25개 종목"""
-        initial_stocks = [
-            # 반도체/전자
-            {'ticker': '005930', 'name': '삼성전자', 'sector': '반도체', 'price': 79000},
-            {'ticker': '000660', 'name': 'SK하이닉스', 'sector': '반도체', 'price': 45000},
-            {'ticker': '035420', 'name': 'NAVER', 'sector': '인터넷', 'price': 220000},
-            {'ticker': '051910', 'name': 'LG화학', 'sector': '화학', 'price': 520000},
-            {'ticker': '006400', 'name': '삼성SDI', 'sector': '화학', 'price': 380000},
+            if simulation_id in cls._active_simulations:
+                return {'success': False, 'message': f'시뮬레이션 {simulation_id}가 이미 실행 중입니다.'}
             
-            # 자동차
-            {'ticker': '005380', 'name': '현대차', 'sector': '자동차', 'price': 180000},
-            {'ticker': '005490', 'name': '기아', 'sector': '자동차', 'price': 85000},
-            {'ticker': '012450', 'name': '한화에어로스페이스', 'sector': '방산', 'price': 45000},
+            # 시뮬레이션 데이터 초기화
+            cls._active_simulations[simulation_id] = {
+                'status': 'starting',
+                'start_time': datetime.now(),
+                'total_events': 0,
+                'total_news': 0,
+                'last_event_time': None
+            }
             
-            # 금융
-            {'ticker': '055550', 'name': '신한지주', 'sector': '금융', 'price': 45000},
-            {'ticker': '086790', 'name': '하나금융지주', 'sector': '금융', 'price': 42000},
-            {'ticker': '105560', 'name': 'KB금융', 'sector': '금융', 'price': 65000},
-            {'ticker': '138930', 'name': 'BNK금융지주', 'sector': '금융', 'price': 8500},
-            
-            # 건설/조선
-            {'ticker': '028260', 'name': '삼성물산', 'sector': '건설', 'price': 45000},
-            {'ticker': '009540', 'name': '현대중공업', 'sector': '조선', 'price': 120000},
-            {'ticker': '010140', 'name': '삼성중공업', 'sector': '조선', 'price': 8500},
-            
-            # 통신/미디어
-            {'ticker': '017670', 'name': 'SK텔레콤', 'sector': '통신', 'price': 52000},
-            {'ticker': '030200', 'name': 'KT', 'sector': '통신', 'price': 35000},
-            {'ticker': '011070', 'name': 'LG이노텍', 'sector': '전자부품', 'price': 180000},
-            
-            # 제조/소재
-            {'ticker': '015760', 'name': '한국전력', 'sector': '전력', 'price': 22000},
-            {'ticker': '096770', 'name': 'SK이노베이션', 'sector': '에너지', 'price': 120000},
-            {'ticker': '068270', 'name': '셀트리온', 'sector': '바이오', 'price': 180000},
-            {'ticker': '207940', 'name': '삼성바이오로직스', 'sector': '바이오', 'price': 850000},
-            
-            # 소비재
-            {'ticker': '097950', 'name': 'CJ제일제당', 'sector': '식품', 'price': 380000},
-            {'ticker': '035720', 'name': '카카오', 'sector': '인터넷', 'price': 45000},
-            {'ticker': '323410', 'name': '카카오뱅크', 'sector': '금융', 'price': 28000},
-            {'ticker': '373220', 'name': 'LG에너지솔루션', 'sector': '화학', 'price': 450000},
-        ]
-        
-        for stock_data in initial_stocks:
-            Stock.objects.get_or_create(
-                ticker=stock_data['ticker'],
-                defaults={
-                    'name': stock_data['name'],
-                    'sector': stock_data['sector'],
-                    'current_price': stock_data['price'],
-                    'base_price': stock_data['price']
-                }
+            # 별도 스레드에서 시뮬레이션 실행
+            thread = threading.Thread(
+                target=cls._run_simulation,
+                args=(simulation_id, settings),
+                daemon=True
             )
+            thread.start()
+            
+            return {'success': True, 'message': f'시뮬레이션 {simulation_id}가 시작되었습니다.'}
+            
+        except Exception as e:
+            return {'success': False, 'message': f'시뮬레이션 시작 실패: {str(e)}'}
+    
+    @classmethod
+    def stop_simulation(cls, simulation_id):
+        """시뮬레이션 정지"""
+        try:
+            if simulation_id not in cls._active_simulations:
+                return {'success': False, 'message': f'시뮬레이션 {simulation_id}가 실행 중이 아닙니다.'}
+            
+            cls._active_simulations[simulation_id]['status'] = 'stopping'
+            return {'success': True, 'message': f'시뮬레이션 {simulation_id} 정지 요청됨'}
+            
+        except Exception as e:
+            return {'success': False, 'message': f'시뮬레이션 정지 실패: {str(e)}'}
+    
+    @classmethod
+    def get_simulation_status(cls, simulation_id):
+        """시뮬레이션 상태 조회"""
+        if simulation_id not in cls._active_simulations:
+            return None
         
-        return True 
+        sim_data = cls._active_simulations[simulation_id]
+        
+        # 경과 시간 계산
+        elapsed_time = datetime.now() - sim_data['start_time']
+        elapsed_hours = int(elapsed_time.total_seconds() // 3600)
+        elapsed_minutes = int((elapsed_time.total_seconds() % 3600) // 60)
+        
+        return {
+            'simulation_id': simulation_id,
+            'status': sim_data['status'],
+            'start_time': sim_data['start_time'].isoformat(),
+            'elapsed_time': f'{elapsed_hours}시간 {elapsed_minutes}분',
+            'total_events': sim_data['total_events'],
+            'total_news': sim_data['total_news'],
+            'last_event_time': sim_data['last_event_time'].isoformat() if sim_data['last_event_time'] else None,
+            'performance': {
+                'cpu_usage': '45%',  # 실제로는 시스템 모니터링 필요
+                'memory_usage': '2.3GB',
+                'events_per_minute': sim_data['total_events'] / max(1, elapsed_time.total_seconds() / 60)
+            }
+        }
+    
+    @classmethod
+    def _run_simulation(cls, simulation_id, settings):
+        """시뮬레이션 실행 (별도 스레드)"""
+        try:
+            # 시뮬레이션 엔진 초기화
+            initial_data = get_initial_data()
+            
+            # 사용자 설정이 있으면 적용
+            if 'market_params' in settings:
+                initial_data['market_params'] = settings['market_params']
+                print(f"=== 시뮬레이션 엔진 초기화 ===")
+                print(f"시뮬레이션 ID: {simulation_id}")
+                print(f"적용된 시장 파라미터: {json.dumps(settings['market_params'], indent=2, ensure_ascii=False)}")
+                print(f"이벤트 생성 간격: {settings.get('event_generation_interval', 30)}초")
+                print(f"뉴스 생성 활성화: {settings.get('news_generation_enabled', True)}")
+                print(f"최대 이벤트/시간: {settings.get('max_events_per_hour', 10)}")
+                print(f"허용 카테고리: {settings.get('allowed_categories', [])}")
+            
+            engine = SimulationEngine(initial_data)
+            engine.enable_news_generation(settings['news_generation_enabled'])
+            engine.set_event_generation_interval(settings.get('event_generation_interval', 30))
+            engine.set_allowed_categories(settings.get('allowed_categories', ["경제", "정책", "기업", "기술", "국제"]))
+            
+            # 시뮬레이션 엔진 시작
+            engine.start()
+            
+            # 시뮬레이션 상태 업데이트
+            cls._active_simulations[simulation_id]['status'] = 'running'
+            
+            # 이벤트 생성 콜백
+            def on_event_occur(event_data):
+                cls._active_simulations[simulation_id]['total_events'] += 1
+                cls._active_simulations[simulation_id]['last_event_time'] = datetime.now()
+                
+                # 이벤트 로그 저장
+                save_event_log(
+                    sim_id=simulation_id,
+                    event_id=event_data['id'],
+                    event=event_data,
+                    affected_stocks=event_data.get('affected_stocks', []),
+                    market_impact=event_data.get('market_impact', 0),
+                    simulation_time=datetime.now().isoformat()
+                )
+            
+            # 뉴스 생성 콜백
+            def on_news_update(news_data):
+                cls._active_simulations[simulation_id]['total_news'] += 1
+            
+            engine.add_callback("event_occur", on_event_occur)
+            engine.add_callback("news_update", on_news_update)
+            
+            # 시뮬레이션 루프
+            while cls._active_simulations[simulation_id]['status'] == 'running':
+                engine.update()
+                time.sleep(settings['event_generation_interval'])
+                
+                # 시간당 최대 이벤트 수 체크
+                if cls._active_simulations[simulation_id]['total_events'] >= settings['max_events_per_hour']:
+                    time.sleep(3600)  # 1시간 대기
+                    cls._active_simulations[simulation_id]['total_events'] = 0
+            
+            # 시뮬레이션 종료
+            cls._active_simulations[simulation_id]['status'] = 'stopped'
+            
+        except Exception as e:
+            cls._active_simulations[simulation_id]['status'] = 'error'
+            print(f"시뮬레이션 오류 ({simulation_id}): {str(e)}")
+    
+    @classmethod
+    def get_all_simulation_status(cls):
+        """모든 시뮬레이션 상태 조회"""
+        return {
+            sim_id: cls.get_simulation_status(sim_id)
+            for sim_id in cls._active_simulations.keys()
+        } 

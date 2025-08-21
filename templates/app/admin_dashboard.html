@@ -1,0 +1,987 @@
+{% extends 'base.html' %}
+{% block title %}SAMS 관리자 대시보드{% endblock %}
+{% block head_extra %}
+<style>
+.admin-header {
+    background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%);
+    color: white;
+    padding: 2rem;
+    border-radius: 1rem;
+    margin-bottom: 2rem;
+}
+
+.control-panel {
+    background: white;
+    border-radius: 1rem;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    overflow: hidden;
+}
+
+.control-header {
+    background: #f8fafc;
+    padding: 1.5rem;
+    border-bottom: 1px solid #e2e8f0;
+}
+
+.status-indicator {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+    border-radius: 2rem;
+    font-weight: 600;
+    font-size: 0.875rem;
+}
+
+.status-running {
+    background: #dcfce7;
+    color: #166534;
+}
+
+.status-stopped {
+    background: #fef2f2;
+    color: #dc2626;
+}
+
+.status-paused {
+    background: #fef3c7;
+    color: #92400e;
+}
+
+.control-buttons {
+    display: flex;
+    gap: 1rem;
+    margin-top: 1rem;
+}
+
+.control-btn {
+    padding: 0.75rem 1.5rem;
+    border: none;
+    border-radius: 0.5rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.control-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.btn-start {
+    background: #10b981;
+    color: white;
+}
+
+.btn-start:hover:not(:disabled) {
+    background: #059669;
+}
+
+.btn-stop {
+    background: #ef4444;
+    color: white;
+}
+
+.btn-stop:hover:not(:disabled) {
+    background: #dc2626;
+}
+
+.btn-pause {
+    background: #f59e0b;
+    color: white;
+}
+
+.btn-pause:hover:not(:disabled) {
+    background: #d97706;
+}
+
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 1.5rem;
+    margin-bottom: 2rem;
+}
+
+.stat-card {
+    background: white;
+    padding: 1.5rem;
+    border-radius: 1rem;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    border-left: 4px solid #3b82f6;
+}
+
+.stat-value {
+    font-size: 2rem;
+    font-weight: bold;
+    margin-bottom: 0.5rem;
+}
+
+.stat-label {
+    color: #6b7280;
+    font-size: 0.875rem;
+}
+
+.logs-container {
+    background: white;
+    border-radius: 1rem;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    overflow: hidden;
+}
+
+.logs-header {
+    background: #f8fafc;
+    padding: 1.5rem;
+    border-bottom: 1px solid #e2e8f0;
+    display: flex;
+    justify-content: between;
+    align-items: center;
+}
+
+.logs-content {
+    max-height: 400px;
+    overflow-y: auto;
+    padding: 1rem;
+}
+
+.log-entry {
+    padding: 0.75rem;
+    border-bottom: 1px solid #f1f5f9;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.log-entry:last-child {
+    border-bottom: none;
+}
+
+.log-timestamp {
+    color: #6b7280;
+    font-size: 0.75rem;
+    min-width: 120px;
+}
+
+.log-level {
+    padding: 0.25rem 0.5rem;
+    border-radius: 0.25rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.log-level.info {
+    background: #dbeafe;
+    color: #1e40af;
+}
+
+.log-level.warning {
+    background: #fef3c7;
+    color: #92400e;
+}
+
+.log-level.error {
+    background: #fee2e2;
+    color: #dc2626;
+}
+
+.log-message {
+    flex: 1;
+    font-size: 0.875rem;
+}
+
+.settings-panel {
+    background: white;
+    border-radius: 1rem;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    overflow: hidden;
+}
+
+.settings-form {
+    padding: 1.5rem;
+}
+
+.form-group {
+    margin-bottom: 1.5rem;
+}
+
+.form-label {
+    display: block;
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+    color: #374151;
+}
+
+.form-input {
+    width: 100%;
+    padding: 0.75rem;
+    border: 1px solid #d1d5db;
+    border-radius: 0.5rem;
+    font-size: 0.875rem;
+}
+
+.form-select {
+    width: 100%;
+    padding: 0.75rem;
+    border: 1px solid #d1d5db;
+    border-radius: 0.5rem;
+    font-size: 0.875rem;
+    background: white;
+}
+
+.form-checkbox {
+    margin-right: 0.5rem;
+}
+
+.btn-save {
+    background: #3b82f6;
+    color: white;
+    padding: 0.75rem 1.5rem;
+    border: none;
+    border-radius: 0.5rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.btn-save:hover {
+    background: #2563eb;
+}
+
+.performance-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1rem;
+    margin-top: 1rem;
+}
+
+.performance-item {
+    background: #f8fafc;
+    padding: 1rem;
+    border-radius: 0.5rem;
+    text-align: center;
+}
+
+.performance-value {
+    font-size: 1.5rem;
+    font-weight: bold;
+    color: #1e40af;
+}
+
+.performance-label {
+    font-size: 0.75rem;
+    color: #6b7280;
+    margin-top: 0.25rem;
+}
+</style>
+{% endblock %}
+
+{% block body %}
+<div class="grid grid-cols-12 min-h-screen">
+  <aside class="col-span-2 bg-white border-r">
+    <div class="p-4 font-bold">SAMS</div>
+    <nav class="px-2 space-y-1">
+      <a href="{% url 'home' %}" class="block px-3 py-2 hover:bg-slate-50 rounded-lg">홈</a>
+      <a href="{% url 'portfolio' %}" class="block px-3 py-2 hover:bg-slate-50 rounded-lg">포트폴리오</a>
+      <a href="{% url 'trading' %}" class="block px-3 py-2 hover:bg-slate-50 rounded-lg">거래</a>
+      <a href="{% url 'simulation' %}" class="block px-3 py-2 hover:bg-slate-50 rounded-lg">시뮬레이션</a>
+      <a href="{% url 'news' %}" class="block px-3 py-2 hover:bg-slate-50 rounded-lg">뉴스</a>
+      <a class="block px-3 py-2 bg-slate-100 rounded-lg">관리자</a>
+    </nav>
+  </aside>
+
+  <main class="col-span-10 bg-slate-50 p-4 space-y-6">
+    <!-- 관리자 헤더 -->
+    <div class="admin-header">
+      <div class="flex items-center justify-between">
+        <div>
+          <h1 class="text-3xl font-bold">관리자 대시보드</h1>
+          <p class="text-blue-100 mt-2">시뮬레이션 시스템 중앙 제어 센터</p>
+        </div>
+        <div class="text-right">
+          <div class="text-sm text-blue-200">관리자</div>
+          <div class="text-lg font-semibold">{{ user.username }}</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 시뮬레이션 제어 패널 -->
+    <div class="control-panel">
+      <div class="control-header">
+        <div class="flex items-center justify-between">
+          <div>
+            <h2 class="text-xl font-bold text-gray-900">시뮬레이션 제어</h2>
+            <p class="text-gray-600 mt-1">시뮬레이션 시작, 정지, 일시정지 및 모니터링</p>
+          </div>
+          <div id="statusIndicator" class="status-indicator status-stopped">
+            <span class="status-dot"></span>
+            <span class="status-text">정지됨</span>
+          </div>
+        </div>
+        
+        <div class="control-buttons">
+          <button id="startBtn" class="control-btn btn-start">
+            ▶ 시작
+          </button>
+          <button id="pauseBtn" class="control-btn btn-pause" disabled>
+            ⏸ 일시정지
+          </button>
+          <button id="stopBtn" class="control-btn btn-stop" disabled>
+            ⏹ 정지
+          </button>
+        </div>
+      </div>
+      
+      <div class="p-6">
+        <div class="stats-grid">
+          <div class="stat-card">
+            <div class="stat-value text-blue-600" id="totalEvents">0</div>
+            <div class="stat-label">총 이벤트</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value text-green-600" id="totalNews">0</div>
+            <div class="stat-label">총 뉴스 기사</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value text-purple-600" id="elapsedTime">0시간</div>
+            <div class="stat-label">경과 시간</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value text-orange-600" id="lastEvent">-</div>
+            <div class="stat-label">마지막 이벤트</div>
+          </div>
+        </div>
+        
+        <div class="performance-grid">
+          <div class="performance-item">
+            <div class="performance-value" id="cpuUsage">0%</div>
+            <div class="performance-label">CPU 사용률</div>
+          </div>
+          <div class="performance-item">
+            <div class="performance-value" id="memoryUsage">0GB</div>
+            <div class="performance-label">메모리 사용량</div>
+          </div>
+          <div class="performance-item">
+            <div class="performance-value" id="eventsPerMinute">0</div>
+            <div class="performance-label">이벤트/분</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 설정 패널 -->
+    <div class="settings-panel">
+      <div class="control-header">
+        <h2 class="text-xl font-bold text-gray-900">시뮬레이션 설정</h2>
+        <p class="text-gray-600 mt-1">이벤트 생성 간격, 뉴스 생성 여부 등 설정</p>
+      </div>
+      
+      <div class="settings-form">
+        <!-- 기본 설정 -->
+        <div class="mb-8">
+          <h3 class="text-lg font-semibold text-gray-800 mb-4">기본 설정</h3>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div class="form-group">
+              <label class="form-label">이벤트 생성 간격 (초)</label>
+              <input type="number" id="eventInterval" class="form-input" value="30" min="10" max="300">
+            </div>
+            
+            <div class="form-group">
+              <label class="form-label">시뮬레이션 속도</label>
+              <select id="simulationSpeed" class="form-select">
+                <option value="1">1x (실시간)</option>
+                <option value="2" selected>2x (2배 빠름)</option>
+                <option value="5">5x (5배 빠름)</option>
+                <option value="10">10x (10배 빠름)</option>
+              </select>
+            </div>
+            
+            <div class="form-group">
+              <label class="form-label">최대 이벤트/시간</label>
+              <input type="number" id="maxEventsPerHour" class="form-input" value="10" min="1" max="50">
+            </div>
+            
+            <div class="form-group">
+              <label class="form-label">시뮬레이션 ID</label>
+              <input type="text" id="simulationId" class="form-input" value="default-sim">
+            </div>
+            
+            <div class="form-group md:col-span-2">
+              <label class="form-label">허용 카테고리</label>
+              <div class="grid grid-cols-2 md:grid-cols-5 gap-2 mt-2">
+                <label class="flex items-center">
+                  <input type="checkbox" class="form-checkbox" value="경제" checked>
+                  <span class="text-sm">경제</span>
+                </label>
+                <label class="flex items-center">
+                  <input type="checkbox" class="form-checkbox" value="정책" checked>
+                  <span class="text-sm">정책</span>
+                </label>
+                <label class="flex items-center">
+                  <input type="checkbox" class="form-checkbox" value="기업" checked>
+                  <span class="text-sm">기업</span>
+                </label>
+                <label class="flex items-center">
+                  <input type="checkbox" class="form-checkbox" value="기술" checked>
+                  <span class="text-sm">기술</span>
+                </label>
+                <label class="flex items-center">
+                  <input type="checkbox" class="form-checkbox" value="국제" checked>
+                  <span class="text-sm">국제</span>
+                </label>
+              </div>
+            </div>
+            
+            <div class="form-group md:col-span-2">
+              <label class="flex items-center">
+                <input type="checkbox" id="newsGenerationEnabled" class="form-checkbox" checked>
+                <span class="ml-2">뉴스 기사 자동 생성</span>
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <!-- 정부 정책 설정 -->
+        <div class="mb-8">
+          <h3 class="text-lg font-semibold text-gray-800 mb-4">정부 정책 설정</h3>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div class="form-group">
+              <label class="form-label">정책 방향성 (-1 ~ 1)</label>
+              <input type="range" id="policyDirection" class="form-input" min="-1" max="1" step="0.1" value="0.2">
+              <div class="flex justify-between text-xs text-gray-500 mt-1">
+                <span>규제 중심</span>
+                <span id="policyDirectionValue">0.2</span>
+                <span>성장 유도</span>
+              </div>
+            </div>
+            
+            <div class="form-group">
+              <label class="form-label">기준금리 (%)</label>
+              <input type="number" id="interestRate" class="form-input" value="3.0" min="0" max="10" step="0.1">
+            </div>
+            
+            <div class="form-group">
+              <label class="form-label">세금 정책 (-1 ~ 1)</label>
+              <input type="range" id="taxPolicy" class="form-input" min="-1" max="1" step="0.1" value="-0.1">
+              <div class="flex justify-between text-xs text-gray-500 mt-1">
+                <span>감세(부양)</span>
+                <span id="taxPolicyValue">-0.1</span>
+                <span>증세(긴축)</span>
+              </div>
+            </div>
+            
+            <div class="form-group">
+              <label class="form-label">AI 산업 지원 (0 ~ 1)</label>
+              <input type="range" id="aiSupport" class="form-input" min="0" max="1" step="0.1" value="0.6">
+              <div class="flex justify-between text-xs text-gray-500 mt-1">
+                <span>미지원</span>
+                <span id="aiSupportValue">0.6</span>
+                <span>적극 지원</span>
+              </div>
+            </div>
+            
+            <div class="form-group">
+              <label class="form-label">친환경 산업 지원 (0 ~ 1)</label>
+              <input type="range" id="greenSupport" class="form-input" min="0" max="1" step="0.1" value="0.3">
+              <div class="flex justify-between text-xs text-gray-500 mt-1">
+                <span>미지원</span>
+                <span id="greenSupportValue">0.3</span>
+                <span>적극 지원</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 기업 성향 설정 -->
+        <div class="mb-8">
+          <h3 class="text-lg font-semibold text-gray-800 mb-4">기업 성향 설정</h3>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div class="form-group">
+              <label class="form-label">기업 성향 (-1 ~ 1)</label>
+              <input type="range" id="companyTrait" class="form-input" min="-1" max="1" step="0.1" value="0.4">
+              <div class="flex justify-between text-xs text-gray-500 mt-1">
+                <span>보수적</span>
+                <span id="companyTraitValue">0.4</span>
+                <span>공격적</span>
+              </div>
+            </div>
+            
+            <div class="form-group">
+              <label class="form-label">R&D 투자 비율 (0 ~ 1)</label>
+              <input type="range" id="rndRatio" class="form-input" min="0" max="1" step="0.1" value="0.3">
+              <div class="flex justify-between text-xs text-gray-500 mt-1">
+                <span>낮음</span>
+                <span id="rndRatioValue">0.3</span>
+                <span>높음</span>
+              </div>
+            </div>
+            
+            <div class="form-group">
+              <label class="form-label">산업 트렌드 정합성 (0 ~ 1)</label>
+              <input type="range" id="industryMatch" class="form-input" min="0" max="1" step="0.1" value="0.8">
+              <div class="flex justify-between text-xs text-gray-500 mt-1">
+                <span>낮음</span>
+                <span id="industryMatchValue">0.8</span>
+                <span>높음</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 대중 심리 설정 -->
+        <div class="mb-8">
+          <h3 class="text-lg font-semibold text-gray-800 mb-4">대중 심리 설정</h3>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div class="form-group">
+              <label class="form-label">리스크 선호도 (-1 ~ 1)</label>
+              <input type="range" id="riskAppetite" class="form-input" min="-1" max="1" step="0.1" value="0.3">
+              <div class="flex justify-between text-xs text-gray-500 mt-1">
+                <span>보수적</span>
+                <span id="riskAppetiteValue">0.3</span>
+                <span>공격적</span>
+              </div>
+            </div>
+            
+            <div class="form-group">
+              <label class="form-label">뉴스 민감도 (0 ~ 1)</label>
+              <input type="range" id="newsSensitivity" class="form-input" min="0" max="1" step="0.1" value="0.7">
+              <div class="flex justify-between text-xs text-gray-500 mt-1">
+                <span>낮음</span>
+                <span id="newsSensitivityValue">0.7</span>
+                <span>높음</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 언론 설정 -->
+        <div class="mb-8">
+          <h3 class="text-lg font-semibold text-gray-800 mb-4">언론 설정</h3>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div class="form-group">
+              <label class="form-label">언론 성향 (-1 ~ 1)</label>
+              <input type="range" id="mediaBias" class="form-input" min="-1" max="1" step="0.1" value="0.2">
+              <div class="flex justify-between text-xs text-gray-500 mt-1">
+                <span>비관적</span>
+                <span id="mediaBiasValue">0.2</span>
+                <span>낙관적</span>
+              </div>
+            </div>
+            
+            <div class="form-group">
+              <label class="form-label">언론 신뢰도 (0 ~ 1)</label>
+              <input type="range" id="mediaTrust" class="form-input" min="0" max="1" step="0.1" value="0.7">
+              <div class="flex justify-between text-xs text-gray-500 mt-1">
+                <span>낮음</span>
+                <span id="mediaTrustValue">0.7</span>
+                <span>높음</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <div class="mt-6">
+          <button id="saveSettingsBtn" class="btn-save">
+            설정 저장
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 로그 패널 -->
+    <div class="logs-container">
+      <div class="logs-header">
+        <div>
+          <h2 class="text-xl font-bold text-gray-900">시뮬레이션 로그</h2>
+          <p class="text-gray-600 mt-1">실시간 시뮬레이션 로그 모니터링</p>
+        </div>
+        <button id="refreshLogsBtn" class="btn-save">
+          새로고침
+        </button>
+      </div>
+      
+      <div class="logs-content" id="logsContent">
+        <div class="text-center text-gray-500 py-8">
+          로그를 불러오는 중...
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let currentSimulationId = 'default-sim';
+let simulationStatus = 'stopped';
+let statusUpdateInterval;
+
+// Range 슬라이더 값 업데이트 함수들
+function updateRangeValue(rangeId, valueId) {
+    const range = document.getElementById(rangeId);
+    const value = document.getElementById(valueId);
+    if (range && value) {
+        value.textContent = range.value;
+    }
+}
+
+// 모든 range 슬라이더에 이벤트 리스너 추가
+document.addEventListener('DOMContentLoaded', function() {
+    const ranges = [
+        { range: 'policyDirection', value: 'policyDirectionValue' },
+        { range: 'taxPolicy', value: 'taxPolicyValue' },
+        { range: 'aiSupport', value: 'aiSupportValue' },
+        { range: 'greenSupport', value: 'greenSupportValue' },
+        { range: 'companyTrait', value: 'companyTraitValue' },
+        { range: 'rndRatio', value: 'rndRatioValue' },
+        { range: 'industryMatch', value: 'industryMatchValue' },
+        { range: 'riskAppetite', value: 'riskAppetiteValue' },
+        { range: 'newsSensitivity', value: 'newsSensitivityValue' },
+        { range: 'mediaBias', value: 'mediaBiasValue' },
+        { range: 'mediaTrust', value: 'mediaTrustValue' }
+    ];
+    
+    ranges.forEach(({ range, value }) => {
+        const rangeElement = document.getElementById(range);
+        if (rangeElement) {
+            rangeElement.addEventListener('input', () => updateRangeValue(range, value));
+            // 초기값 설정
+            updateRangeValue(range, value);
+        }
+    });
+});
+
+// 시뮬레이션 상태 조회
+async function fetchSimulationStatus() {
+    try {
+        const response = await fetch(`/api/admin/simulation/status/?simulation_id=${currentSimulationId}`);
+        const data = await response.json();
+        
+        if (data.success) {
+            updateStatusDisplay(data.data);
+        }
+    } catch (error) {
+        console.error('상태 조회 실패:', error);
+    }
+}
+
+// 상태 표시 업데이트
+function updateStatusDisplay(statusData) {
+    simulationStatus = statusData.status;
+    
+    // 상태 인디케이터 업데이트
+    const statusIndicator = document.getElementById('statusIndicator');
+    const statusText = statusIndicator.querySelector('.status-text');
+    
+    statusIndicator.className = `status-indicator status-${statusData.status}`;
+    
+    switch (statusData.status) {
+        case 'running':
+            statusText.textContent = '실행 중';
+            document.getElementById('startBtn').disabled = true;
+            document.getElementById('pauseBtn').disabled = false;
+            document.getElementById('stopBtn').disabled = false;
+            break;
+        case 'paused':
+            statusText.textContent = '일시정지';
+            document.getElementById('startBtn').disabled = false;
+            document.getElementById('pauseBtn').disabled = true;
+            document.getElementById('stopBtn').disabled = false;
+            break;
+        case 'stopped':
+            statusText.textContent = '정지됨';
+            document.getElementById('startBtn').disabled = false;
+            document.getElementById('pauseBtn').disabled = true;
+            document.getElementById('stopBtn').disabled = true;
+            break;
+    }
+    
+    // 통계 업데이트
+    document.getElementById('totalEvents').textContent = statusData.total_events;
+    document.getElementById('totalNews').textContent = statusData.total_news;
+    document.getElementById('elapsedTime').textContent = statusData.elapsed_time;
+    document.getElementById('lastEvent').textContent = formatTime(statusData.last_event_time);
+    
+    // 성능 지표 업데이트
+    document.getElementById('cpuUsage').textContent = statusData.performance.cpu_usage;
+    document.getElementById('memoryUsage').textContent = statusData.performance.memory_usage;
+    document.getElementById('eventsPerMinute').textContent = statusData.performance.events_per_minute;
+}
+
+// 시뮬레이션 시작
+async function startSimulation() {
+    try {
+        // 설정값 가져오기
+        const settings = {
+            event_generation_interval: parseInt(document.getElementById('eventInterval')?.value || 30),
+            news_generation_enabled: document.getElementById('newsGenerationEnabled')?.checked || true,
+            max_events_per_hour: parseInt(document.getElementById('maxEventsPerHour')?.value || 10),
+            simulation_speed: parseInt(document.getElementById('simulationSpeed')?.value || 2),
+            allowed_categories: getSelectedCategories(),
+            market_params: {
+                government: {
+                    policy_direction: parseFloat(document.getElementById('policyDirection')?.value || 0.2),
+                    interest_rate: parseFloat(document.getElementById('interestRate')?.value || 3.0),
+                    tax_policy: parseFloat(document.getElementById('taxPolicy')?.value || -0.1),
+                    industry_support: {
+                        AI: parseFloat(document.getElementById('aiSupport')?.value || 0.6),
+                        Green: parseFloat(document.getElementById('greenSupport')?.value || 0.3)
+                    }
+                },
+                company: {
+                    trait: parseFloat(document.getElementById('companyTrait')?.value || 0.4),
+                    rnd_ratio: parseFloat(document.getElementById('rndRatio')?.value || 0.3),
+                    industry_match: parseFloat(document.getElementById('industryMatch')?.value || 0.8)
+                },
+                public: {
+                    risk_appetite: parseFloat(document.getElementById('riskAppetite')?.value || 0.3),
+                    news_sensitivity: parseFloat(document.getElementById('newsSensitivity')?.value || 0.7)
+                },
+                media: {
+                    bias: parseFloat(document.getElementById('mediaBias')?.value || 0.2),
+                    trust: parseFloat(document.getElementById('mediaTrust')?.value || 0.7)
+                }
+            }
+        };
+        
+        const response = await fetch('/api/admin/simulation/start/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCookie('csrftoken')
+            },
+            body: JSON.stringify({
+                simulation_id: currentSimulationId,
+                settings: settings
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            showNotification('시뮬레이션이 시작되었습니다.', 'success');
+            fetchSimulationStatus();
+            // 상태 업데이트 주기 시작
+            startStatusUpdates();
+        } else {
+            showNotification(data.message, 'error');
+        }
+    } catch (error) {
+        console.error('시뮬레이션 시작 실패:', error);
+        showNotification('시뮬레이션 시작에 실패했습니다.', 'error');
+    }
+}
+
+// 시뮬레이션 정지
+async function stopSimulation() {
+    try {
+        const response = await fetch('/api/admin/simulation/stop/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCookie('csrftoken')
+            },
+            body: JSON.stringify({
+                simulation_id: currentSimulationId
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            showNotification('시뮬레이션이 정지되었습니다.', 'success');
+            fetchSimulationStatus();
+            // 상태 업데이트 중지
+            stopStatusUpdates();
+        } else {
+            showNotification(data.message, 'error');
+        }
+    } catch (error) {
+        console.error('시뮬레이션 정지 실패:', error);
+        showNotification('시뮬레이션 정지에 실패했습니다.', 'error');
+    }
+}
+
+// 로그 조회
+async function fetchLogs() {
+    try {
+        const response = await fetch(`/api/admin/simulation/logs/?simulation_id=${currentSimulationId}&limit=50`);
+        const data = await response.json();
+        
+        if (data.success) {
+            updateLogsDisplay(data.data.logs);
+        }
+    } catch (error) {
+        console.error('로그 조회 실패:', error);
+    }
+}
+
+// 로그 표시 업데이트
+function updateLogsDisplay(logs) {
+    const logsContent = document.getElementById('logsContent');
+    
+    if (logs.length === 0) {
+        logsContent.innerHTML = '<div class="text-center text-gray-500 py-8">로그가 없습니다.</div>';
+        return;
+    }
+    
+    logsContent.innerHTML = logs.map(log => `
+        <div class="log-entry">
+            <div class="log-timestamp">${formatTime(log.timestamp)}</div>
+            <div class="log-level ${log.level.toLowerCase()}">${log.level}</div>
+            <div class="log-message">${log.message}</div>
+        </div>
+    `).join('');
+}
+
+// 설정 저장
+async function saveSettings() {
+    try {
+        const settings = {
+            event_generation_interval: parseInt(document.getElementById('eventInterval')?.value || 30),
+            simulation_speed: parseInt(document.getElementById('simulationSpeed')?.value || 2),
+            max_events_per_hour: parseInt(document.getElementById('maxEventsPerHour')?.value || 10),
+            simulation_id: document.getElementById('simulationId')?.value || 'default-sim',
+            allowed_categories: getSelectedCategories(),
+            news_generation_enabled: document.getElementById('newsGenerationEnabled')?.checked || true,
+            market_params: {
+                government: {
+                    policy_direction: parseFloat(document.getElementById('policyDirection')?.value || 0.2),
+                    interest_rate: parseFloat(document.getElementById('interestRate')?.value || 3.0),
+                    tax_policy: parseFloat(document.getElementById('taxPolicy')?.value || -0.1),
+                    industry_support: {
+                        AI: parseFloat(document.getElementById('aiSupport')?.value || 0.6),
+                        Green: parseFloat(document.getElementById('greenSupport')?.value || 0.3)
+                    }
+                },
+                company: {
+                    trait: parseFloat(document.getElementById('companyTrait')?.value || 0.4),
+                    rnd_ratio: parseFloat(document.getElementById('rndRatio')?.value || 0.3),
+                    industry_match: parseFloat(document.getElementById('industryMatch')?.value || 0.8)
+                },
+                public: {
+                    risk_appetite: parseFloat(document.getElementById('riskAppetite')?.value || 0.3),
+                    news_sensitivity: parseFloat(document.getElementById('newsSensitivity')?.value || 0.7)
+                },
+                media: {
+                    bias: parseFloat(document.getElementById('mediaBias')?.value || 0.2),
+                    trust: parseFloat(document.getElementById('mediaTrust')?.value || 0.7)
+                }
+            }
+        };
+        
+        const response = await fetch('/api/admin/simulation/settings/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCookie('csrftoken')
+            },
+            body: JSON.stringify(settings)
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            showNotification('설정이 저장되었습니다.', 'success');
+            currentSimulationId = settings.simulation_id;
+        } else {
+            showNotification(data.message, 'error');
+        }
+    } catch (error) {
+        console.error('설정 저장 실패:', error);
+        showNotification('설정 저장에 실패했습니다.', 'error');
+    }
+}
+
+// 시간 포맷팅
+function formatTime(timestamp) {
+    if (!timestamp) return '-';
+    const date = new Date(timestamp);
+    return date.toLocaleString('ko-KR', { 
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit', 
+        minute: '2-digit',
+        second: '2-digit'
+    });
+}
+
+// 알림 표시
+function showNotification(message, type) {
+    // 간단한 알림 구현 (실제로는 더 정교한 알림 시스템 사용)
+    alert(message);
+}
+
+// 선택된 카테고리 가져오기
+function getSelectedCategories() {
+    const checkboxes = document.querySelectorAll('input[type="checkbox"][value]');
+    const selected = [];
+    
+    checkboxes.forEach(checkbox => {
+        if (checkbox.checked) {
+            selected.push(checkbox.value);
+        }
+    });
+    
+    return selected;
+}
+
+// 상태 업데이트 주기 시작
+function startStatusUpdates() {
+    if (statusUpdateInterval) {
+        clearInterval(statusUpdateInterval);
+    }
+    
+    statusUpdateInterval = setInterval(() => {
+        if (simulationStatus === 'running') {
+            fetchSimulationStatus();
+        }
+    }, 5000); // 5초마다 업데이트
+}
+
+// 상태 업데이트 주기 중지
+function stopStatusUpdates() {
+    if (statusUpdateInterval) {
+        clearInterval(statusUpdateInterval);
+        statusUpdateInterval = null;
+    }
+}
+
+// CSRF 토큰 가져오기
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+
+// 이벤트 리스너
+document.getElementById('startBtn').addEventListener('click', startSimulation);
+document.getElementById('stopBtn').addEventListener('click', stopSimulation);
+document.getElementById('refreshLogsBtn').addEventListener('click', fetchLogs);
+document.getElementById('saveSettingsBtn').addEventListener('click', saveSettings);
+
+// 초기 로드
+document.addEventListener('DOMContentLoaded', function() {
+    fetchSimulationStatus();
+    fetchLogs();
+    
+    // 주기적으로 상태 업데이트 (5초마다)
+    statusUpdateInterval = setInterval(fetchSimulationStatus, 5000);
+});
+
+// 페이지 언로드 시 인터벌 정리
+window.addEventListener('beforeunload', function() {
+    if (statusUpdateInterval) {
+        clearInterval(statusUpdateInterval);
+    }
+});
+</script>
+{% endblock %}

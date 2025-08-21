@@ -1,0 +1,437 @@
+{% extends 'base.html' %}
+{% block title %}SAMS 뉴스 대시보드{% endblock %}
+{% block head_extra %}
+<style>
+.news-feed {
+    max-height: 600px;
+    overflow-y: auto;
+}
+
+.news-item {
+    border-left: 4px solid #3b82f6;
+    padding: 1.5rem;
+    margin-bottom: 1rem;
+    background: white;
+    border-radius: 0.5rem;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    transition: all 0.2s;
+}
+
+.news-item:hover {
+    box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+    transform: translateY(-1px);
+}
+
+.news-item.positive { border-left-color: #10b981; }
+.news-item.negative { border-left-color: #ef4444; }
+.news-item.neutral { border-left-color: #6b7280; }
+
+.media-badge {
+    display: inline-block;
+    padding: 0.25rem 0.75rem;
+    border-radius: 1rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.media-conservative { background: #fef3c7; color: #92400e; }
+.media-neutral { background: #e0e7ff; color: #3730a3; }
+.media-progressive { background: #dbeafe; color: #1e40af; }
+
+.bias-indicator {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.25rem 0.5rem;
+    border-radius: 0.5rem;
+    font-size: 0.75rem;
+    font-weight: 500;
+}
+
+.bias-conservative { background: #fef2f2; color: #dc2626; }
+.bias-neutral { background: #f3f4f6; color: #374151; }
+.bias-progressive { background: #f0fdf4; color: #16a34a; }
+
+.filter-controls {
+    background: white;
+    padding: 1rem;
+    border-radius: 0.5rem;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    margin-bottom: 1rem;
+}
+
+.filter-group {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: 0.5rem;
+}
+
+.filter-group:last-child {
+    margin-bottom: 0;
+}
+
+.filter-label {
+    font-weight: 600;
+    color: #374151;
+    min-width: 80px;
+}
+
+.filter-select {
+    border: 1px solid #d1d5db;
+    border-radius: 0.375rem;
+    padding: 0.5rem;
+    background: white;
+    font-size: 0.875rem;
+}
+
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+.stat-card {
+    background: white;
+    padding: 1.5rem;
+    border-radius: 0.5rem;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    text-align: center;
+}
+
+.stat-value {
+    font-size: 2rem;
+    font-weight: bold;
+    margin-bottom: 0.5rem;
+}
+
+.stat-label {
+    color: #6b7280;
+    font-size: 0.875rem;
+}
+
+.loading {
+    text-align: center;
+    padding: 2rem;
+    color: #6b7280;
+}
+
+.error {
+    text-align: center;
+    padding: 2rem;
+    color: #dc2626;
+    background: #fef2f2;
+    border-radius: 0.5rem;
+    margin: 1rem 0;
+}
+</style>
+{% endblock %}
+
+{% block body %}
+<div class="grid grid-cols-12 min-h-screen">
+  <aside class="col-span-2 bg-white border-r">
+    <div class="p-4 font-bold">SAMS</div>
+    <nav class="px-2 space-y-1">
+      <a href="{% url 'home' %}" class="block px-3 py-2 hover:bg-slate-50 rounded-lg">홈</a>
+      <a href="{% url 'portfolio' %}" class="block px-3 py-2 hover:bg-slate-50 rounded-lg">포트폴리오</a>
+      <a href="{% url 'trading' %}" class="block px-3 py-2 hover:bg-slate-50 rounded-lg">거래</a>
+      <a href="{% url 'simulation' %}" class="block px-3 py-2 hover:bg-slate-50 rounded-lg">시뮬레이션</a>
+      <a class="block px-3 py-2 bg-slate-100 rounded-lg">뉴스</a>
+      <a href="{% url 'admin' %}" class="block px-3 py-2 hover:bg-slate-50 rounded-lg">관리자</a>
+    </nav>
+  </aside>
+
+  <main class="col-span-10 bg-slate-50 p-4 space-y-6">
+    <!-- 헤더 -->
+    <div class="bg-white rounded-2xl shadow-soft p-6">
+      <div class="flex items-center justify-between">
+        <div>
+          <h1 class="text-3xl font-bold text-gray-900">AI 뉴스 피드</h1>
+          <p class="text-gray-600 mt-2">시뮬레이션에서 생성된 AI 뉴스 기사들을 확인하세요</p>
+        </div>
+        <div class="text-right">
+          <div class="text-sm text-gray-500">마지막 업데이트</div>
+          <div class="text-lg font-semibold" id="lastUpdate">-</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 필터 컨트롤 -->
+    <div class="filter-controls">
+      <div class="filter-group">
+        <span class="filter-label">시뮬레이션:</span>
+        <select id="simulationSelect" class="filter-select">
+          <option value="default-sim">기본 시뮬레이션</option>
+        </select>
+      </div>
+      <div class="filter-group">
+        <span class="filter-label">언론사:</span>
+        <select id="mediaSelect" class="filter-select">
+          <option value="">전체 언론사</option>
+          <option value="조선일보">조선일보</option>
+          <option value="한겨레">한겨레</option>
+          <option value="매일경제">매일경제</option>
+          <option value="KBS">KBS</option>
+          <option value="MBC">MBC</option>
+          <option value="SBS">SBS</option>
+          <option value="YTN">YTN</option>
+          <option value="연합뉴스">연합뉴스</option>
+          <option value="뉴시스">뉴시스</option>
+          <option value="이데일리">이데일리</option>
+          <option value="서울경제">서울경제</option>
+          <option value="한국경제">한국경제</option>
+          <option value="아시아경제">아시아경제</option>
+          <option value="헤럴드경제">헤럴드경제</option>
+        </select>
+      </div>
+      <div class="filter-group">
+        <span class="filter-label">개수:</span>
+        <select id="limitSelect" class="filter-select">
+          <option value="10">10개</option>
+          <option value="20" selected>20개</option>
+          <option value="50">50개</option>
+          <option value="100">100개</option>
+        </select>
+        <button id="refreshBtn" class="ml-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+          새로고침
+        </button>
+      </div>
+    </div>
+
+    <!-- 통계 -->
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-value text-blue-600" id="totalNews">0</div>
+        <div class="stat-label">총 뉴스 기사</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value text-green-600" id="totalEvents">0</div>
+        <div class="stat-label">총 이벤트</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value text-purple-600" id="avgCredibility">0.0</div>
+        <div class="stat-label">평균 신뢰도</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value text-orange-600" id="mediaCount">0</div>
+        <div class="stat-label">활성 언론사</div>
+      </div>
+    </div>
+
+    <!-- 뉴스 피드 -->
+    <div class="bg-white rounded-2xl shadow-soft overflow-hidden">
+      <div class="p-4 border-b">
+        <h3 class="text-lg font-semibold">뉴스 기사 목록</h3>
+        <p class="text-sm text-slate-600 mt-1">최신 뉴스 기사들이 시간순으로 표시됩니다</p>
+      </div>
+      
+      <div class="p-4">
+        <div id="newsFeed" class="news-feed">
+          <div class="loading">
+            <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
+            뉴스 기사를 불러오는 중...
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let currentSimulationId = 'default-sim';
+let currentMediaFilter = '';
+let currentLimit = 20;
+
+// 뉴스 피드 조회
+async function fetchNewsFeed() {
+    const feedElement = document.getElementById('newsFeed');
+    
+    try {
+        feedElement.innerHTML = `
+            <div class="loading">
+                <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
+                뉴스 기사를 불러오는 중...
+            </div>
+        `;
+        
+        const url = `/api/simulation/news/?simulation_id=${currentSimulationId}&limit=${currentLimit}${currentMediaFilter ? `&media=${currentMediaFilter}` : ''}`;
+        const response = await fetch(url);
+        const data = await response.json();
+        
+        if (data.success) {
+            updateNewsFeed(data.data.news_feed);
+            updateStats(data.data.news_feed);
+            updateLastUpdate();
+        } else {
+            showError('뉴스 피드를 불러오는데 실패했습니다: ' + data.message);
+        }
+    } catch (error) {
+        console.error('뉴스 피드 조회 실패:', error);
+        showError('뉴스 피드를 불러오는데 실패했습니다.');
+    }
+}
+
+// 뉴스 피드 업데이트
+function updateNewsFeed(newsFeed) {
+    const feedElement = document.getElementById('newsFeed');
+    
+    if (newsFeed.length === 0) {
+        feedElement.innerHTML = `
+            <div class="text-center py-8 text-gray-500">
+                <div class="text-4xl mb-2">📰</div>
+                <div class="text-lg font-medium">뉴스 기사가 없습니다</div>
+                <div class="text-sm">시뮬레이션을 실행하여 뉴스 기사를 생성해보세요</div>
+            </div>
+        `;
+        return;
+    }
+    
+    feedElement.innerHTML = newsFeed.map(news => {
+        const sentimentClass = getSentimentClass(news.event_info.sentiment);
+        const mediaClass = getMediaClass(news.outlet_bias);
+        const biasClass = getBiasClass(news.outlet_bias);
+        const biasText = getBiasText(news.outlet_bias);
+        
+        return `
+            <div class="news-item ${sentimentClass}">
+                <div class="flex justify-between items-start mb-3">
+                    <div class="flex items-center gap-2">
+                        <span class="media-badge ${mediaClass}">${news.media_name}</span>
+                        <span class="bias-indicator ${biasClass}">${biasText}</span>
+                        <span class="text-sm text-gray-500">신뢰도: ${(news.outlet_credibility * 100).toFixed(0)}%</span>
+                    </div>
+                    <div class="text-xs text-gray-500">${formatTime(news.created_at)}</div>
+                </div>
+                
+                <div class="mb-3">
+                    <h4 class="font-semibold text-lg mb-2">${news.event_info.event_type}</h4>
+                    <div class="text-sm text-gray-600 mb-2">
+                        카테고리: ${news.event_info.category} | 
+                        감성: ${news.event_info.sentiment > 0 ? '긍정' : news.event_info.sentiment < 0 ? '부정' : '중립'} | 
+                        영향도: ${news.event_info.impact_level}/5
+                    </div>
+                </div>
+                
+                <div class="bg-gray-50 p-3 rounded-lg">
+                    <p class="text-gray-800 leading-relaxed">${news.article_text}</p>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+// 통계 업데이트
+function updateStats(newsFeed) {
+    if (newsFeed.length === 0) {
+        document.getElementById('totalNews').textContent = '0';
+        document.getElementById('totalEvents').textContent = '0';
+        document.getElementById('avgCredibility').textContent = '0.0';
+        document.getElementById('mediaCount').textContent = '0';
+        return;
+    }
+    
+    // 총 뉴스 기사 수
+    document.getElementById('totalNews').textContent = newsFeed.length;
+    
+    // 총 이벤트 수 (중복 제거)
+    const uniqueEvents = new Set(newsFeed.map(news => news.event_info.event_id));
+    document.getElementById('totalEvents').textContent = uniqueEvents.size;
+    
+    // 평균 신뢰도
+    const avgCredibility = newsFeed.reduce((sum, news) => sum + news.outlet_credibility, 0) / newsFeed.length;
+    document.getElementById('avgCredibility').textContent = avgCredibility.toFixed(1);
+    
+    // 활성 언론사 수
+    const uniqueMedia = new Set(newsFeed.map(news => news.media_name));
+    document.getElementById('mediaCount').textContent = uniqueMedia.size;
+}
+
+// 마지막 업데이트 시간
+function updateLastUpdate() {
+    const now = new Date();
+    document.getElementById('lastUpdate').textContent = now.toLocaleTimeString('ko-KR');
+}
+
+// 감성 클래스 반환
+function getSentimentClass(sentiment) {
+    if (sentiment > 0) return 'positive';
+    if (sentiment < 0) return 'negative';
+    return 'neutral';
+}
+
+// 언론사 클래스 반환
+function getMediaClass(bias) {
+    if (bias < -0.3) return 'media-conservative';
+    if (bias > 0.3) return 'media-progressive';
+    return 'media-neutral';
+}
+
+// 성향 클래스 반환
+function getBiasClass(bias) {
+    if (bias < -0.3) return 'bias-conservative';
+    if (bias > 0.3) return 'bias-progressive';
+    return 'bias-neutral';
+}
+
+// 성향 텍스트 반환
+function getBiasText(bias) {
+    if (bias < -0.3) return '보수';
+    if (bias > 0.3) return '진보';
+    return '중립';
+}
+
+// 시간 포맷팅
+function formatTime(timestamp) {
+    if (!timestamp) return '';
+    const date = new Date(timestamp);
+    return date.toLocaleString('ko-KR', { 
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit', 
+        minute: '2-digit'
+    });
+}
+
+// 에러 표시
+function showError(message) {
+    const feedElement = document.getElementById('newsFeed');
+    feedElement.innerHTML = `
+        <div class="error">
+            <div class="text-lg font-medium mb-2">오류 발생</div>
+            <div>${message}</div>
+        </div>
+    `;
+}
+
+// 이벤트 리스너
+document.getElementById('simulationSelect').addEventListener('change', (e) => {
+    currentSimulationId = e.target.value;
+    fetchNewsFeed();
+});
+
+document.getElementById('mediaSelect').addEventListener('change', (e) => {
+    currentMediaFilter = e.target.value;
+    fetchNewsFeed();
+});
+
+document.getElementById('limitSelect').addEventListener('change', (e) => {
+    currentLimit = parseInt(e.target.value);
+    fetchNewsFeed();
+});
+
+document.getElementById('refreshBtn').addEventListener('click', fetchNewsFeed);
+
+// 초기 로드
+document.addEventListener('DOMContentLoaded', function() {
+    fetchNewsFeed();
+    
+    // 자동 새로고침 (5분마다)
+    setInterval(fetchNewsFeed, 300000);
+});
+</script>
+{% endblock %}

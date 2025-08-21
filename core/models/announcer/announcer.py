@@ -6,6 +6,7 @@ from core.models.announcer.event import Event
 from core.models.announcer.news import News, Media
 from core.models.announcer.prompt_builder import build_event_prompt
 from utils.id_generator import generate_id
+from utils.logger import get_event_log, get_recent_events_for_context, save_news_article
 from llama_client import query_llm  # Ollama/로컬 LLM HTTP 클라이언트 (이미 사용 중)
 
 class Announcer:
@@ -16,19 +17,46 @@ class Announcer:
         self,
         past_events: Optional[List[Event]] = None,
         count: int = 1,
-        allowed_categories: Optional[List[str]] = None
+        allowed_categories: Optional[List[str]] = None,
+        market_context: Optional[dict] = None
     ) -> List[Event]:
         """
         LLM을 사용해 사건 N개를 생성하여 Event 인스턴스 리스트로 반환합니다.
         - past_events: 맥락에 쓰일 과거 사건들
         - count: 생성할 사건 개수
         - allowed_categories: 허용 카테고리 목록
+        - market_context: 현재 시장 상태 정보
         """
+        # 시장 컨텍스트 정보를 프롬프트에 포함
+        context_info = ""
+        if market_context:
+            market_state = market_context.get("market_state", {})
+            market_params = market_context.get("market_params", {})
+            
+            context_info = f"""
+현재 시장 상황:
+- 시뮬레이션 시간: {market_context.get('simulation_time', 'N/A')}
+- 시장 분위기: {market_state.get('market_sentiment', 'neutral')}
+- 평균 변화율: {market_state.get('average_change_rate', 0):.2%}
+- 시장 변동성: {market_context.get('market_volatility', 0):.3f}
+- 활성 종목 수: {market_state.get('active_stocks_count', 0)}개
+- 총 거래량: {market_state.get('total_volume', 0):,}주
+
+시장 파라미터:
+- 공공 투자자 위험 선호도: {market_params.get('public', {}).get('risk_appetite', 0):.2f}
+- 뉴스 민감도: {market_params.get('public', {}).get('news_sensitivity', 0):.2f}
+- 정부 정책 방향: {market_params.get('government', {}).get('policy_direction', 0):.2f}
+- 기업 R&D 집중도: {market_params.get('company', {}).get('rnd_focus', 0):.2f}
+
+지금까지 생성된 이벤트 수: {market_context.get('total_events_generated', 0)}개
+"""
+        
         prompt = build_event_prompt(
             past_events=past_events,
             count=count,
             allowed_categories=allowed_categories,
             language="ko",
+            market_context=context_info  # 시장 컨텍스트 정보 전달
         )
         raw = query_llm(prompt).strip()
 
@@ -62,6 +90,186 @@ class Announcer:
 
         return events
 
+    # -----------------------------
+    # 파이어스토어 기반 뉴스 생성
+    # -----------------------------
+    def generate_news_for_event_from_firestore(
+        self,
+        sim_id: str,
+        event_id: str,
+        outlets: List[Media],
+        context_events_limit: int = 5
+    ) -> List[News]:
+        """
+        파이어스토어에서 이벤트 로그를 조회하여 뉴스 기사를 생성합니다.
+        
+        Args:
+            sim_id: 시뮬레이션 ID
+            event_id: 이벤트 ID
+            outlets: 언론사 목록
+            context_events_limit: 컨텍스트로 사용할 최근 이벤트 수
+        
+        Returns:
+            생성된 뉴스 기사 목록
+        """
+        # 1. 이벤트 로그 조회
+        event_log = get_event_log(sim_id, event_id)
+        if not event_log:
+            print(f"이벤트 로그를 찾을 수 없습니다: {sim_id}/{event_id}")
+            return []
+        
+        # 2. 컨텍스트용 최근 이벤트들 조회
+        recent_events = get_recent_events_for_context(sim_id, context_events_limit)
+        
+        # 3. 각 언론사별로 뉴스 기사 생성
+        news_list: List[News] = []
+        for outlet in outlets:
+            try:
+                article_text = self.generate_news_from_event_log(
+                    event_log=event_log,
+                    outlet=outlet,
+                    recent_events=recent_events
+                )
+                
+                news_id = generate_id("news")
+                news = News(id=news_id, media=outlet.name, article_text=article_text)
+                news_list.append(news)
+                
+                # 4. 생성된 뉴스 기사를 파이어스토어에 저장
+                save_news_article(
+                    sim_id=sim_id,
+                    event_id=event_id,
+                    news_id=news_id,
+                    media_name=outlet.name,
+                    article_text=article_text,
+                    meta={
+                        "outlet_bias": outlet.bias,
+                        "outlet_credibility": outlet.credibility,
+                        "generation_method": "firestore_based"
+                    }
+                )
+                
+                print(f"뉴스 기사 생성 완료: {outlet.name} - {news_id}")
+                
+            except Exception as e:
+                print(f"뉴스 기사 생성 실패 ({outlet.name}): {e}")
+                continue
+        
+        return news_list
+
+    def generate_news_from_event_log(
+        self,
+        event_log: dict,
+        outlet: Media,
+        recent_events: List[dict]
+    ) -> str:
+        """
+        이벤트 로그를 바탕으로 뉴스 기사를 생성합니다.
+        
+        Args:
+            event_log: 파이어스토어에서 조회한 이벤트 로그
+            outlet: 언론사 정보
+            recent_events: 최근 이벤트들 (컨텍스트용)
+        
+        Returns:
+            생성된 뉴스 기사 텍스트
+        """
+        # 1) 프롬프트 구성
+        lines = ["다음은 지금까지 발생한 사건들의 요약입니다:\n"]
+        
+        if recent_events:
+            for i, event_data in enumerate(recent_events[-5:], 1):
+                event = event_data.get("event", {})
+                lines.append(
+                    f"{i}. 사건명: {event.get('event_type', 'N/A')} / "
+                    f"카테고리: {event.get('category', 'N/A')} / "
+                    f"감성: {event.get('sentiment', 0)} / "
+                    f"영향: {event.get('impact_level', 3)}"
+                )
+        else:
+            lines.append("이전 사건은 없습니다.")
+
+        # 현재 이벤트 정보
+        current_event = event_log.get("event", {})
+        lines += [
+            "\n현재 사건은 다음과 같습니다:\n",
+            "[사건 정보]",
+            f"- 제목: {current_event.get('event_type', 'N/A')}",
+            f"- 카테고리: {current_event.get('category', 'N/A')}",
+            f"- 감성 점수: {current_event.get('sentiment', 0)}",
+            f"- 영향 수준: {current_event.get('impact_level', 3)}",
+            f"- 지속 기간: {current_event.get('duration', 'mid')}",
+
+            "",
+            "이 사건에 대해, 아래 언론사의 성향과 신뢰도를 반영한 뉴스 기사를 생성하세요:",
+            "",
+            "[언론사 정보]",
+            f"- 이름: {outlet.name}",
+            f"- 성향 (bias): {outlet.bias} (-1: 보수, 0: 중립, +1: 진보)",
+            f"- 신뢰도 (credibility): {outlet.credibility} (0~1)",
+            "",
+            "[출력 형식]",
+            "뉴스 기사 본문만 출력하세요. 머리말, 코드블록, 따옴표, 이모지 등은 넣지 마세요.",
+            "기사 길이는 250~400자 내외, 한국어로 자연스럽게 작성하세요.",
+            "언론사의 성향에 따라 보도 톤을 조절하세요.",
+            "",
+            "[중요 규칙]",
+            "- 한국어로만 작성하세요. 영어 번역이나 번역 표시를 포함하지 마세요.",
+            "- 코드, JSON, 기술적 파라미터를 포함하지 마세요.",
+            "- 순수한 뉴스 기사 형태로만 작성하세요.",
+            "- 언론사 이름은 기사 내용에 포함하지 마세요.",
+        ]
+        prompt = "\n".join(lines)
+
+        # 2) LLM 호출
+        raw = query_llm(prompt).strip()
+
+        # 3) 후처리
+        text = self._extract_news_text(raw)
+        text = self._cleanup_text(text)
+
+        return text
+
+    def generate_news_for_multiple_events(
+        self,
+        sim_id: str,
+        event_ids: List[str],
+        outlets: List[Media],
+        context_events_limit: int = 5
+    ) -> dict:
+        """
+        여러 이벤트에 대해 일괄적으로 뉴스 기사를 생성합니다.
+        
+        Args:
+            sim_id: 시뮬레이션 ID
+            event_ids: 이벤트 ID 목록
+            outlets: 언론사 목록
+            context_events_limit: 컨텍스트용 최근 이벤트 수
+        
+        Returns:
+            이벤트별 뉴스 기사 목록
+        """
+        results = {}
+        
+        for event_id in event_ids:
+            try:
+                news_list = self.generate_news_for_event_from_firestore(
+                    sim_id=sim_id,
+                    event_id=event_id,
+                    outlets=outlets,
+                    context_events_limit=context_events_limit
+                )
+                results[event_id] = news_list
+                print(f"이벤트 {event_id}에 대한 뉴스 기사 {len(news_list)}개 생성 완료")
+            except Exception as e:
+                print(f"이벤트 {event_id} 뉴스 생성 실패: {e}")
+                results[event_id] = []
+        
+        return results
+
+    # -----------------------------
+    # 기존 메서드들 (유지)
+    # -----------------------------
     @staticmethod
     def _extract_json_block(text: str) -> str:
         """
@@ -123,9 +331,6 @@ class Announcer:
             "duration": duration,
         }
 
-    # --------------------------------------------------------
-    # 기존 뉴스 생성(이미 구현되어 있는 메서드들) 예시 시그니처
-    # --------------------------------------------------------
     def generate_news_for_event(
         self,
         event: Event,
@@ -224,14 +429,13 @@ class Announcer:
 
         return t.strip()
 
-
     @staticmethod
     def _cleanup_text(text: str) -> str:
         """
         따옴표/이모지/양끝 공백 등 가벼운 정리.
         """
         # 양 끝의 큰따옴표/작은따옴표 제거
-        text = text.strip().strip('“”"\'')
+        text = text.strip().strip('""""\'')
         # 윈도우 콘솔에서 깨질 수 있는 이모지 제거(선택)
         try:
             text = text.encode("cp949", errors="ignore").decode("cp949")
