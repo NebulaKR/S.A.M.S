@@ -233,7 +233,7 @@ def update_simulation_settings(request):
 def portfolio_dashboard(request):
     """포트폴리오 대시보드"""
     portfolio_summary = PortfolioService.get_portfolio_summary(request.user)
-    all_stocks = StockService.get_all_stocks()
+    all_stocks = StockService.get_all_stocks_with_watchlist_status(request.user)
     watchlist = PortfolioService.get_watchlist(request.user)
     
     context = {

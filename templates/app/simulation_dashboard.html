@@ -291,7 +291,10 @@
             바이오 (2)
           </button>
           <button class="sector-filter-btn px-3 py-2 rounded-lg bg-gray-100 text-gray-800 text-sm font-medium" data-sector="인터넷">
-            인터넷 (3)
+            인터넷 (2)
+          </button>
+          <button class="sector-filter-btn px-3 py-2 rounded-lg bg-gray-100 text-gray-800 text-sm font-medium" data-sector="식품">
+            식품 (1)
           </button>
         </div>
         
@@ -497,9 +500,9 @@
           <div class="sector-group mb-6" data-sector="인터넷">
             <div class="flex items-center justify-between mb-3">
               <h4 class="font-semibold text-lg text-red-800">🔴 인터넷</h4>
-              <span class="text-sm text-slate-500">3개 종목</span>
+              <span class="text-sm text-slate-500">2개 종목</span>
             </div>
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
               <div class="stock-card" data-ticker="035420">
                 <div class="flex justify-between items-center">
                   <div>
@@ -524,6 +527,16 @@
                   </div>
                 </div>
               </div>
+            </div>
+          </div>
+
+          <!-- 식품/소비재 섹터 -->
+          <div class="sector-group mb-6" data-sector="식품">
+            <div class="flex items-center justify-between mb-3">
+              <h4 class="font-semibold text-lg text-yellow-800">🟡 식품/소비재</h4>
+              <span class="text-sm text-slate-500">1개 종목</span>
+            </div>
+            <div class="grid grid-cols-1 gap-3">
               <div class="stock-card" data-ticker="097950">
                 <div class="flex justify-between items-center">
                   <div>
@@ -539,46 +552,116 @@
             </div>
           </div>
 
-          <!-- 기타 주요 섹터들 (접힌 상태) -->
+          <!-- 건설/조선 섹터 -->
           <div class="sector-group mb-6" data-sector="건설">
-            <div class="flex items-center justify-between mb-3 cursor-pointer" onclick="toggleSector('건설')">
+            <div class="flex items-center justify-between mb-3">
               <h4 class="font-semibold text-lg text-orange-800">🟠 건설/조선</h4>
               <span class="text-sm text-slate-500">3개 종목</span>
-              <span class="text-sm text-slate-400">▼ 펼치기</span>
             </div>
-            <div class="sector-content hidden">
-              <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
-                <div class="stock-card" data-ticker="028260">삼성물산 (028260)</div>
-                <div class="stock-card" data-ticker="009540">현대중공업 (009540)</div>
-                <div class="stock-card" data-ticker="010140">삼성중공업 (010140)</div>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <div class="stock-card" data-ticker="028260">
+                <div class="flex justify-between items-center">
+                  <div>
+                    <div class="font-semibold">삼성물산</div>
+                    <div class="text-sm text-slate-500">028260</div>
+                  </div>
+                  <div class="text-right">
+                    <div class="font-bold text-lg">₩45,000</div>
+                    <div class="text-sm text-green-600">+0.00%</div>
+                  </div>
+                </div>
+              </div>
+              <div class="stock-card" data-ticker="009540">
+                <div class="flex justify-between items-center">
+                  <div>
+                    <div class="font-semibold">현대중공업</div>
+                    <div class="text-sm text-slate-500">009540</div>
+                  </div>
+                  <div class="text-right">
+                    <div class="font-bold text-lg">₩120,000</div>
+                    <div class="text-sm text-green-600">+0.00%</div>
+                  </div>
+                </div>
+              </div>
+              <div class="stock-card" data-ticker="010140">
+                <div class="flex justify-between items-center">
+                  <div>
+                    <div class="font-semibold">삼성중공업</div>
+                    <div class="text-sm text-slate-500">010140</div>
+                  </div>
+                  <div class="text-right">
+                    <div class="font-bold text-lg">₩8,500</div>
+                    <div class="text-sm text-green-600">+0.00%</div>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
 
+          <!-- 통신 섹터 -->
           <div class="sector-group mb-6" data-sector="통신">
-            <div class="flex items-center justify-between mb-3 cursor-pointer" onclick="toggleSector('통신')">
+            <div class="flex items-center justify-between mb-3">
               <h4 class="font-semibold text-lg text-indigo-800">🔷 통신</h4>
               <span class="text-sm text-slate-500">2개 종목</span>
-              <span class="text-sm text-slate-400">▼ 펼치기</span>
             </div>
-            <div class="sector-content hidden">
-              <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <div class="stock-card" data-ticker="017670">SK텔레콤 (017670)</div>
-                <div class="stock-card" data-ticker="030200">KT (030200)</div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div class="stock-card" data-ticker="017670">
+                <div class="flex justify-between items-center">
+                  <div>
+                    <div class="font-semibold">SK텔레콤</div>
+                    <div class="text-sm text-slate-500">017670</div>
+                  </div>
+                  <div class="text-right">
+                    <div class="font-bold text-lg">₩45,000</div>
+                    <div class="text-sm text-green-600">+0.00%</div>
+                  </div>
+                </div>
+              </div>
+              <div class="stock-card" data-ticker="030200">
+                <div class="flex justify-between items-center">
+                  <div>
+                    <div class="font-semibold">KT</div>
+                    <div class="text-sm text-slate-500">030200</div>
+                  </div>
+                  <div class="text-right">
+                    <div class="font-bold text-lg">₩32,000</div>
+                    <div class="text-sm text-green-600">+0.00%</div>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
 
+          <!-- 바이오 섹터 -->
           <div class="sector-group mb-6" data-sector="바이오">
-            <div class="flex items-center justify-between mb-3 cursor-pointer" onclick="toggleSector('바이오')">
+            <div class="flex items-center justify-between mb-3">
               <h4 class="font-semibold text-lg text-pink-800">🌸 바이오</h4>
               <span class="text-sm text-slate-500">2개 종목</span>
-              <span class="text-sm text-slate-400">▼ 펼치기</span>
             </div>
-            <div class="sector-content hidden">
-              <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <div class="stock-card" data-ticker="068270">셀트리온 (068270)</div>
-                <div class="stock-card" data-ticker="207940">삼성바이오로직스 (207940)</div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div class="stock-card" data-ticker="068270">
+                <div class="flex justify-between items-center">
+                  <div>
+                    <div class="font-semibold">셀트리온</div>
+                    <div class="text-sm text-slate-500">068270</div>
+                  </div>
+                  <div class="text-right">
+                    <div class="font-bold text-lg">₩180,000</div>
+                    <div class="text-sm text-green-600">+0.00%</div>
+                  </div>
+                </div>
+              </div>
+              <div class="stock-card" data-ticker="207940">
+                <div class="flex justify-between items-center">
+                  <div>
+                    <div class="font-semibold">삼성바이오로직스</div>
+                    <div class="text-sm text-slate-500">207940</div>
+                  </div>
+                  <div class="text-right">
+                    <div class="font-bold text-lg">₩850,000</div>
+                    <div class="text-sm text-green-600">+0.00%</div>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -842,20 +925,7 @@ function filterBySector(sector) {
     event.target.className = event.target.className.replace('bg-gray-100 text-gray-800', 'bg-blue-100 text-blue-800');
 }
 
-// 섹터 접기/펼치기
-function toggleSector(sectorName) {
-    const sectorGroup = document.querySelector(`[data-sector="${sectorName}"]`);
-    const content = sectorGroup.querySelector('.sector-content');
-    const toggleText = sectorGroup.querySelector('.cursor-pointer span:last-child');
-    
-    if (content.classList.contains('hidden')) {
-        content.classList.remove('hidden');
-        toggleText.textContent = '▲ 접기';
-    } else {
-        content.classList.add('hidden');
-        toggleText.textContent = '▼ 펼치기';
-    }
-}
+
 
 // 시뮬레이션 상태는 관리자 대시보드에서만 제어 가능
 function showAdminControlMessage() {

@@ -135,9 +135,16 @@ class PortfolioService:
     def get_watchlist(user):
         """사용자의 관심종목 목록을 반환합니다."""
         try:
-            watchlist = Watchlist.objects.get(user=user)
-            return [{'ticker': item.ticker, 'name': item.name} for item in watchlist.stocks.all()]
-        except Watchlist.DoesNotExist:
+            watchlist_items = Watchlist.objects.filter(user=user).select_related('stock')
+            return [{
+                'ticker': item.stock.ticker,
+                'name': item.stock.name,
+                'current_price': float(item.stock.current_price),
+                'change_percent': float(item.stock.price_change),
+                'added_at': item.added_at
+            } for item in watchlist_items]
+        except Exception as e:
+            print(f"관심종목 조회 오류: {str(e)}")
             return []
     
     @staticmethod
@@ -145,8 +152,15 @@ class PortfolioService:
         """관심종목에 추가"""
         try:
             stock = Stock.objects.get(ticker=ticker)
-            watchlist, created = Watchlist.objects.get_or_create(user=user)
-            watchlist.stocks.add(stock)
+            # 이미 관심종목에 있는지 확인
+            if Watchlist.objects.filter(user=user, stock=stock).exists():
+                return {
+                    'success': False,
+                    'message': f'{stock.name}은(는) 이미 관심종목에 있습니다.'
+                }
+            
+            # 관심종목에 추가
+            Watchlist.objects.create(user=user, stock=stock)
             
             return {
                 'success': True,
@@ -162,8 +176,8 @@ class PortfolioService:
         """관심종목에서 제거"""
         try:
             stock = Stock.objects.get(ticker=ticker)
-            watchlist = Watchlist.objects.get(user=user)
-            watchlist.stocks.remove(stock)
+            watchlist_item = Watchlist.objects.get(user=user, stock=stock)
+            watchlist_item.delete()
             
             return {
                 'success': True,
@@ -172,7 +186,7 @@ class PortfolioService:
         except Stock.DoesNotExist:
             return {'success': False, 'message': '존재하지 않는 종목입니다.'}
         except Watchlist.DoesNotExist:
-            return {'success': False, 'message': '관심종목이 없습니다.'}
+            return {'success': False, 'message': '관심종목에 없는 종목입니다.'}
         except Exception as e:
             return {'success': False, 'message': f'관심종목 제거 중 오류가 발생했습니다: {str(e)}'}
 
@@ -187,7 +201,74 @@ class StockService:
             'name': stock.name,
             'current_price': float(stock.current_price),
             'change': float(stock.current_price - stock.base_price),
-            'change_percent': float(stock.price_change)
+            'change_percent': float(stock.price_change),
+            'sector': StockService.get_stock_sector(stock.ticker)
+        } for stock in stocks]
+    
+    @staticmethod
+    def get_stock_sector(ticker):
+        """주식의 섹터를 반환합니다."""
+        sector_mapping = {
+            # 반도체/전자
+            "005930": "반도체",  # 삼성전자
+            "000660": "반도체",  # SK하이닉스
+            "011070": "반도체",  # LG이노텍
+            
+            # 자동차/조선
+            "005380": "자동차",  # 현대차
+            "005490": "자동차",  # 기아
+            "009540": "건설",    # 현대중공업
+            "010140": "건설",    # 삼성중공업
+            "012450": "건설",    # 한화에어로스페이스
+            
+            # 화학/에너지
+            "051910": "화학",    # LG화학
+            "006400": "화학",    # 삼성SDI
+            "373220": "화학",    # LG에너지솔루션
+            "096770": "화학",    # SK이노베이션
+            "015760": "화학",    # 한국전력
+            
+            # 금융
+            "055550": "금융",    # 신한지주
+            "086790": "금융",    # 하나금융지주
+            "105560": "금융",    # KB금융
+            "138930": "금융",    # BNK금융지주
+            "323410": "금융",    # 카카오뱅크
+            
+            # 건설
+            "028260": "건설",    # 삼성물산
+            
+            # 통신
+            "017670": "통신",    # SK텔레콤
+            "030200": "통신",    # KT
+            
+            # 바이오
+            "068270": "바이오",  # 셀트리온
+            "207940": "바이오",  # 삼성바이오로직스
+            
+            # 인터넷
+            "035420": "인터넷",  # NAVER
+            "035720": "인터넷",  # 카카오
+            
+            # 식품/소비재
+            "097950": "식품",    # CJ제일제당
+        }
+        return sector_mapping.get(ticker, "기타")
+    
+    @staticmethod
+    def get_all_stocks_with_watchlist_status(user):
+        """모든 주식 정보와 관심종목 상태를 반환합니다."""
+        stocks = Stock.objects.all()
+        user_watchlist = set(Watchlist.objects.filter(user=user).values_list('stock__ticker', flat=True))
+        
+        return [{
+            'ticker': stock.ticker,
+            'name': stock.name,
+            'current_price': float(stock.current_price),
+            'change': float(stock.current_price - stock.base_price),
+            'change_percent': float(stock.price_change),
+            'sector': StockService.get_stock_sector(stock.ticker),
+            'in_watchlist': stock.ticker in user_watchlist
         } for stock in stocks]
 
 
