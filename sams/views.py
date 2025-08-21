@@ -159,8 +159,21 @@ def get_simulation_control_status(request):
         
         if status_data is None:
             return JsonResponse({
-                'success': False,
-                'message': '실행 중인 시뮬레이션이 없습니다.'
+                'success': True,
+                'data': {
+                    'simulation_id': sim_id,
+                    'status': 'stopped',
+                    'start_time': None,
+                    'elapsed_time': '0시간 0분',
+                    'total_events': 0,
+                    'total_news': 0,
+                    'last_event_time': None,
+                    'performance': {
+                        'cpu_usage': '0%',
+                        'memory_usage': '0GB',
+                        'events_per_minute': 0
+                    }
+                }
             })
         
         return JsonResponse({

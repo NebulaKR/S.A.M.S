@@ -414,8 +414,17 @@ class SimulationEngine:
         return affected
     
     def _update_stock_prices(self):
-        """주가 업데이트"""
+        """주가 업데이트 - 현실적인 모델 적용"""
         print(f"[DEBUG] 주가 업데이트 시작 - {len(self.stocks)}개 종목")
+        
+        # 현실적인 주가 변동 모델 로드
+        try:
+            from core.models.realistic_stock_movement import RealisticStockMovement
+            realistic_model = RealisticStockMovement()
+            print("[DEBUG] 현실적인 주가 변동 모델 로드 완료")
+        except ImportError:
+            print("[WARNING] 현실적인 모델 로드 실패, 기존 모델 사용")
+            realistic_model = None
         
         for ticker, stock_data in self.stocks.items():
             # 최근 이벤트들의 영향을 종합
@@ -423,9 +432,41 @@ class SimulationEngine:
                            if ticker in e.affected_stocks and 
                            (self.simulation_time - e.timestamp).total_seconds() < 3600]  # 1시간 내 이벤트
             
-            if recent_events:
+            if recent_events and realistic_model:
                 print(f"[DEBUG] {ticker}: {len(recent_events)}개 이벤트 영향 발견")
-                # 이벤트들의 종합 영향도 계산
+                
+                # 현실적인 모델을 사용한 주가 변화 계산
+                for sim_event in recent_events:
+                    # SimulationEvent에서 Event 객체 추출
+                    event = sim_event.event
+                    event_dict = {
+                        "event_type": event.event_type,
+                        "category": event.category,
+                        "sentiment": event.sentiment,
+                        "impact_level": event.impact_level
+                    }
+                    
+                    result = realistic_model.calculate_realistic_change(
+                        event=event_dict,
+                        stock_code=ticker,
+                        current_price=stock_data["price"]
+                    )
+                    
+                    # 주가 업데이트
+                    old_price = stock_data["price"]
+                    new_price = result["price"]
+                    change_rate = result["delta"]
+                    volume_change = result["volume"]
+                    
+                    print(f"[DEBUG] {ticker}: {old_price:.0f} → {new_price:.0f} (변동률: {change_rate*100:+.2f}%)")
+                    
+                    stock_data["price"] = new_price
+                    stock_data["change_rate"] = change_rate
+                    stock_data["volume"] = stock_data.get("volume", 1000000) * volume_change
+                    
+            elif recent_events:
+                # 기존 모델 사용 (fallback)
+                print(f"[DEBUG] {ticker}: {len(recent_events)}개 이벤트 영향 발견 (기존 모델)")
                 total_impact = sum(e.market_impact for e in recent_events)
                 print(f"[DEBUG] {ticker}: 총 영향도 = {total_impact:.4f}")
                 

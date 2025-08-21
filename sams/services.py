@@ -632,9 +632,30 @@ class SimulationService:
                 print(f"허용 카테고리: {settings.get('allowed_categories', [])}")
             
             engine = SimulationEngine(initial_data)
-            engine.enable_news_generation(settings['news_generation_enabled'])
-            engine.set_event_generation_interval(settings.get('event_generation_interval', 30))
-            engine.set_allowed_categories(settings.get('allowed_categories', ["경제", "정책", "기업", "기술", "국제"]))
+            
+            # 관리자 대시보드 설정 적용
+            news_enabled = settings.get('news_generation_enabled', True)
+            event_interval = settings.get('event_generation_interval', 30)
+            allowed_categories = settings.get('allowed_categories', ["경제", "정책", "기업", "기술", "국제"])
+            simulation_speed = settings.get('simulation_speed', 2)
+            
+            engine.enable_news_generation(news_enabled)
+            engine.set_event_generation_interval(event_interval)
+            engine.set_allowed_categories(allowed_categories)
+            
+            # 시뮬레이션 속도 설정
+            if simulation_speed == 1:
+                engine.set_speed(SimulationSpeed.SLOW)
+            elif simulation_speed == 2:
+                engine.set_speed(SimulationSpeed.NORMAL)
+            elif simulation_speed >= 5:
+                engine.set_speed(SimulationSpeed.FAST)
+            
+            print(f"🎮 시뮬레이션 설정 적용:")
+            print(f"   - 뉴스 생성: {'활성화' if news_enabled else '비활성화'}")
+            print(f"   - 이벤트 간격: {event_interval}초")
+            print(f"   - 허용 카테고리: {allowed_categories}")
+            print(f"   - 시뮬레이션 속도: {simulation_speed}x")
             
             # 시뮬레이션 엔진 시작
             engine.start()
@@ -647,15 +668,34 @@ class SimulationService:
                 cls._active_simulations[simulation_id]['total_events'] += 1
                 cls._active_simulations[simulation_id]['last_event_time'] = datetime.now()
                 
+                # SimulationEvent 객체인 경우 딕셔너리로 변환
+                if hasattr(event_data, 'to_dict'):
+                    event_dict = event_data.to_dict()
+                elif hasattr(event_data, 'id'):
+                    # SimulationEvent 객체를 수동으로 딕셔너리로 변환
+                    event_dict = {
+                        'id': event_data.id,
+                        'event_type': getattr(event_data, 'event_type', ''),
+                        'category': getattr(event_data, 'category', ''),
+                        'affected_stocks': getattr(event_data, 'affected_stocks', []),
+                        'market_impact': getattr(event_data, 'market_impact', 0.0)
+                    }
+                else:
+                    # 이미 딕셔너리인 경우
+                    event_dict = event_data
+                
                 # 이벤트 로그 저장
-                save_event_log(
-                    sim_id=simulation_id,
-                    event_id=event_data['id'],
-                    event=event_data,
-                    affected_stocks=event_data.get('affected_stocks', []),
-                    market_impact=event_data.get('market_impact', 0),
-                    simulation_time=datetime.now().isoformat()
-                )
+                try:
+                    save_event_log(
+                        sim_id=simulation_id,
+                        event_id=event_dict.get('id', ''),
+                        event=event_dict,
+                        affected_stocks=event_dict.get('affected_stocks', []),
+                        market_impact=event_dict.get('market_impact', 0),
+                        simulation_time=datetime.now().isoformat()
+                    )
+                except Exception as e:
+                    print(f"[WARNING] 이벤트 로그 저장 실패: {e}")
             
             # 뉴스 생성 콜백
             def on_news_update(news_data):
@@ -676,11 +716,11 @@ class SimulationService:
                 if current_status == 'running':
                     engine.update()
                     
-                    # 이벤트 생성 간격을 더 짧게 설정 (테스트용)
-                    sleep_interval = min(settings.get('event_generation_interval', 30), 10)  # 최대 10초
+                    # 관리자 대시보드에서 설정한 간격 사용
+                    sleep_interval = settings.get('event_generation_interval', 30)
                     print(f"시뮬레이션 업데이트 완료, {sleep_interval}초 대기...")
                     
-                    # 대기 중에도 상태 변경 확인
+                    # 대기 중에도 상태 변경 확인 (1초 단위로 체크)
                     for i in range(sleep_interval):
                         if cls._active_simulations[simulation_id]['status'] not in ['running', 'paused']:
                             break

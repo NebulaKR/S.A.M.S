@@ -1,3 +1,4 @@
 secrets/
 .env
 ver1.zip
+firebase-credentials.json
