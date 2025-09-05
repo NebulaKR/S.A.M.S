@@ -56,3 +56,9 @@ node_modules/
 build/
 dist/
 *.egg-info/
+
+# Secrets and credentials
+secrets/
+*.json
+!package.json
+!package-lock.json
