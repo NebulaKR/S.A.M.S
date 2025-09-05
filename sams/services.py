@@ -61,9 +61,35 @@ class PortfolioService:
         """주식 매수 처리"""
         try:
             with transaction.atomic():
-                stock = Stock.objects.get(ticker=ticker)
+                # price 타입 보정 (float -> Decimal 안전 변환)
+                if not isinstance(price, Decimal):
+                    try:
+                        price = Decimal(str(price))
+                    except Exception:
+                        return {'success': False, 'message': '가격 형식이 올바르지 않습니다.'}
+
+                # 종목이 없으면 실시간 데이터 기반으로 생성하여 동기화
+                try:
+                    stock = Stock.objects.get(ticker=ticker)
+                except Stock.DoesNotExist:
+                    # 이름/섹터 최소 정보로 생성 (이름은 티커로 대체)
+                    try:
+                        stock = Stock.objects.create(
+                            ticker=ticker,
+                            name=ticker,
+                            sector=StockService.get_stock_sector(ticker),
+                            current_price=price,
+                            base_price=price,
+                        )
+                    except Exception as ce:
+                        return {'success': False, 'message': f'종목 생성 실패: {str(ce)}'}
                 portfolio, created = Portfolio.objects.get_or_create(user=user)
                 
+                # 최신 가격을 반영하여 저장 (실시간 가격과 로컬 동기화)
+                if stock.current_price != price:
+                    stock.current_price = price
+                    stock.save(update_fields=['current_price', 'updated_at'])
+
                 total_cost = price * quantity
                 balance_before = portfolio.current_balance
                 
@@ -122,6 +148,13 @@ class PortfolioService:
         """주식 매도 처리"""
         try:
             with transaction.atomic():
+                # price 타입 보정 (float -> Decimal 안전 변환)
+                if not isinstance(price, Decimal):
+                    try:
+                        price = Decimal(str(price))
+                    except Exception:
+                        return {'success': False, 'message': '가격 형식이 올바르지 않습니다.'}
+
                 stock = Stock.objects.get(ticker=ticker)
                 portfolio = Portfolio.objects.get(user=user)
                 
@@ -133,6 +166,11 @@ class PortfolioService:
                 if position.quantity < quantity:
                     return {'success': False, 'message': '보유 수량이 부족합니다.'}
                 
+                # 최신 가격 반영
+                if stock.current_price != price:
+                    stock.current_price = price
+                    stock.save(update_fields=['current_price', 'updated_at'])
+
                 total_revenue = price * quantity
                 realized_pnl = (price - position.average_price) * quantity
                 balance_before = portfolio.current_balance

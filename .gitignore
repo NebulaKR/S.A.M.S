@@ -1,7 +1,58 @@
 # Python bytecode
 __pycache__/
+*.pyc
+*.pyo
+*.pyd
 
 # Python virtual environment
 venv/
+.venv/
+env/
+.env
+
+# Django
+db.sqlite3
+db.sqlite3-journal
+*.log
+
+# Environment variables
 *.local
 secret.json
+.env
+.env.local
+.env.production
+secrets/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Firebase
+.firebase/
+firebase-debug.log
+firebase-debug.*.log
+
+# Temporary files
+*.tmp
+*.temp
+*.zip
+*.bak
+
+# Test coverage
+htmlcov/
+.coverage
+.pytest_cache/
+
+# Node modules (if any)
+node_modules/
+
+# Build artifacts
+build/
+dist/
+*.egg-info/

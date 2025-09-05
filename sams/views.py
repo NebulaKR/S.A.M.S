@@ -34,22 +34,15 @@ def signup(request):
         if form.is_valid():
             user = form.save()
             auth_login(request, user)
-            return redirect('home')
+            return redirect('realtime')
     else:
         form = UserCreationForm()
     return render(request, 'accounts/signup.html', {'form': form})
 
 @login_required
-def home(request): # 최초 로그인 시에 보이는 화면 수정 필요
-    context = {
-        'kpi': {'total_asset': '₩ 12,540,000', 'daily_change': '+1.8%', 'cash_ratio': '24%', 'beta': '0.92'},
-        'watchlist': [
-            {'name':'삼성전자','price':'₩ 79,800','change':'+2.1%','pos':'100주','up':True},
-            {'name':'NVIDIA','price':'$ 128.30','change':'-0.6%','pos':'—','up':False},
-            {'name':'Tesla','price':'$ 238.10','change':'+0.8%','pos':'10주','up':True},
-        ],
-    }
-    return render(request, 'app/home.html', context)
+def home(request):
+    """홈 화면은 일시적으로 숨기고 실시간 대시보드로 리다이렉트"""
+    return redirect('realtime')
 
 @login_required
 def simulation_dashboard(request):

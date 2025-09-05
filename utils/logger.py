@@ -19,12 +19,14 @@ def save_market_snapshot(
     이벤트 내용은 저장하지 않는다.
     """
     db = get_firestore()
-    doc_ref = (
-        db.collection("simulations")
-          .document(sim_id)
-          .collection("snapshots")
-          .document()  # 자동 ID
-    )
+    # 상위 시뮬레이션 문서가 없으면 생성(통계에서 조회 가능하도록)
+    sim_ref = db.collection("simulations").document(sim_id)
+    sim_ref.set({
+        "sim_id": sim_id,
+        "updated_at": datetime.utcnow().isoformat(),
+    }, merge=True)
+
+    doc_ref = sim_ref.collection("snapshots").document()  # 자동 ID
     payload = {
         "stocks": stocks,                   # 현재 종목별 가격/체결 등 상태
         "market_params": market_params,     # public/government/company 등 엔진 파라미터
@@ -40,7 +42,7 @@ def save_event_log(
     sim_id: str,
     *,
     event_id: str,
-    event_payload: Dict[str, Any],
+    event: Dict[str, Any],
     affected_stocks: list[str],
     market_impact: float,
     simulation_time: datetime,
@@ -51,14 +53,16 @@ def save_event_log(
     나중에 프롬프트 컨텍스트로 재사용하기 위해 본문/카테고리/감성/영향도 등 원문 필드를 보관.
     """
     db = get_firestore()
-    doc_ref = (
-        db.collection("simulations")
-          .document(sim_id)
-          .collection("events")
-          .document(event_id)  # 이벤트 ID를 문서 ID로 재사용(중복 방지)
-    )
+    # 상위 시뮬레이션 문서가 없으면 생성
+    sim_ref = db.collection("simulations").document(sim_id)
+    sim_ref.set({
+        "sim_id": sim_id,
+        "updated_at": datetime.utcnow().isoformat(),
+    }, merge=True)
+
+    doc_ref = sim_ref.collection("events").document(event_id)  # 이벤트 ID를 문서 ID로 재사용(중복 방지)
     payload = {
-        "event": event_payload,             # Event 객체를 dict로 변환한 내용
+        "event": event,             # Event 객체를 dict로 변환한 내용
         "affected_stocks": affected_stocks,
         "market_impact": float(market_impact),
         "simulation_time": simulation_time.isoformat(),
@@ -348,25 +352,43 @@ def get_database_statistics() -> Dict[str, Any]:
             'firebase_status': 'connected'
         }
         
-        # 모든 시뮬레이션 문서 조회
+        # 모든 시뮬레이션 문서 조회 (부모 문서가 없는 경우를 대비하여 collection group으로도 보완)
         print("📊 시뮬레이션 컬렉션 조회 중...")
+        sim_docs = []
         try:
             sim_docs = list(db.collection("simulations").stream())
-            print(f"📊 발견된 시뮬레이션 수: {len(sim_docs)}")
+            print(f"📊 발견된 시뮬레이션 수(부모 문서 기준): {len(sim_docs)}")
         except Exception as e:
             print(f"❌ 시뮬레이션 컬렉션 조회 실패: {e}")
-            return {
-                'total_simulations': 0,
-                'total_events': 0,
-                'total_news': 0,
-                'total_snapshots': 0,
-                'simulation_details': [],
-                'error': f'시뮬레이션 컬렉션 조회 실패: {str(e)}',
-                'firebase_status': 'error'
-            }
+
+        # 부모 문서가 하나도 없으면 collection group으로 시뮬레이션 ID 유도
+        if not sim_docs:
+            try:
+                snapshot_docs = list(db.collection_group("snapshots").limit(10000).stream())
+                event_docs_cg = list(db.collection_group("events").limit(10000).stream())
+                candidate_sim_ids = set()
+                for d in snapshot_docs:
+                    parent = d.reference.parent  # snapshots
+                    sim = parent.parent  # simulations/{sim_id}
+                    if sim is not None:
+                        candidate_sim_ids.add(sim.id)
+                for d in event_docs_cg:
+                    parent = d.reference.parent  # events
+                    sim = parent.parent  # simulations/{sim_id}
+                    if sim is not None:
+                        candidate_sim_ids.add(sim.id)
+
+                for sim_id in sorted(candidate_sim_ids):
+                    sim_docs.append(db.collection("simulations").document(sim_id).get())
+                print(f"📊 collection group으로 유추된 시뮬레이션 수: {len(candidate_sim_ids)}")
+            except Exception as e:
+                print(f"❌ collection group 조회 실패: {e}")
         
         for sim_doc in sim_docs:
-            sim_id = sim_doc.id
+            # sim_doc가 DocumentSnapshot가 아닐 수 있어 보정
+            sim_id = getattr(sim_doc, 'id', None) or getattr(getattr(sim_doc, 'reference', None), 'id', None)
+            if not sim_id:
+                continue
             print(f"🔍 시뮬레이션 {sim_id} 분석 중...")
             sim_stats = {
                 'simulation_id': sim_id,
@@ -378,7 +400,7 @@ def get_database_statistics() -> Dict[str, Any]:
             
             # 이벤트 수 계산
             try:
-                events = list(sim_doc.reference.collection("events").stream())
+                events = list(db.collection("simulations").document(sim_id).collection("events").stream())
                 sim_stats['events_count'] = len(events)
                 stats['total_events'] += len(events)
                 print(f"  📝 이벤트 수: {len(events)}")
@@ -402,7 +424,7 @@ def get_database_statistics() -> Dict[str, Any]:
             
             # 스냅샷 수 계산
             try:
-                snapshots = list(sim_doc.reference.collection("snapshots").stream())
+                snapshots = list(db.collection("simulations").document(sim_id).collection("snapshots").stream())
                 sim_stats['snapshots_count'] = len(snapshots)
                 stats['total_snapshots'] += len(snapshots)
                 print(f"  📊 스냅샷 수: {len(snapshots)}")

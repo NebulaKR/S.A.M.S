@@ -181,7 +181,7 @@ STATIC_ROOT = BASE_DIR / 'static'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-# 로그인 관련 설정
-LOGIN_REDIRECT_URL = '/home/'
+# 로그인 관련 설정 (홈 숨김: 로그인 시 실시간 대시보드로 이동)
+LOGIN_REDIRECT_URL = '/realtime/'
 LOGIN_URL = '/login/'
 LOGOUT_REDIRECT_URL = '/'
