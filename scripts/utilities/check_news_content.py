@@ -12,7 +12,8 @@ import environ
 environ.Env.read_env(str(Path(__file__).resolve().parent / ".env"))
 
 # 프로젝트 루트를 Python 경로에 추가
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+project_root = Path(__file__).parent.parent.parent
+sys.path.append(str(project_root))
 
 from utils.logger import list_event_logs, get_news_articles_for_event
 

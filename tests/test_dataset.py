@@ -1,4 +1,10 @@
 import unittest
+import sys
+from pathlib import Path
+
+# 프로젝트 루트를 Python 경로에 추가
+project_root = Path(__file__).parent.parent
+sys.path.append(str(project_root))
 
 from utils.dataset import build_supervised_from_sequence, build_labels_from_prices, extract_basic_factors
 
