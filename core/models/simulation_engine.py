@@ -10,7 +10,8 @@ from core.models.coach.coach import Coach
 from core.models.main_model import main_model
 from core.models.announcer.event import Event
 from core.models.announcer.news import News, Media
-from utils.logger import save_market_snapshot, save_event_log
+from core.models.reporter import Reporter
+from utils.logger import save_market_snapshot, save_event_log, save_news_article
 
 class SimulationSpeed(Enum):
     """시뮬레이션 속도 설정"""
@@ -94,6 +95,7 @@ class SimulationEngine:
         
         # AI 모델들
         self.announcer = Announcer()
+        self.reporter = Reporter()
         self.coach = Coach(self.market_params)
         
         # 이벤트 및 뉴스 히스토리
@@ -109,6 +111,7 @@ class SimulationEngine:
         
         # 뉴스 생성 설정
         self._news_generation_enabled = True  # 뉴스 기사 생성 활성화 여부
+        self.news_generation_backend = initial_data.get("news_generation_backend", "reporter")
         # 관리자 제어용: 주가 변동폭 스케일 (다음 틱부터 반영)
         self.price_volatility_scale: float = 1.0
         
@@ -298,13 +301,48 @@ class SimulationEngine:
     def _generate_news_for_event(self, event_id: str):
         """이벤트에 대한 뉴스 기사 생성"""
         try:
-            # 파이어스토어에서 이벤트 로그를 조회하여 뉴스 기사 생성
-            news_list = self.announcer.generate_news_for_event_from_firestore(
-                sim_id=self._get_sim_id(),
-                event_id=event_id,
-                outlets=self.media_outlets,
-                context_events_limit=5
-            )
+            if self.news_generation_backend == "announcer":
+                # 레거시 경로: Announcer가 Firestore 기반으로 뉴스 생성
+                news_list = self.announcer.generate_news_for_event_from_firestore(
+                    sim_id=self._get_sim_id(),
+                    event_id=event_id,
+                    outlets=self.media_outlets,
+                    context_events_limit=5
+                )
+            else:
+                # 기본 경로: Reporter가 Event -> Article 생성 후 News로 변환
+                target_event = None
+                for sim_event in reversed(self.events_history):
+                    if sim_event.id == event_id:
+                        target_event = sim_event.event
+                        break
+
+                if target_event is None:
+                    print(f"뉴스 생성 대상 이벤트를 찾을 수 없습니다: {event_id}")
+                    return
+
+                context_events = [e.event for e in self.events_history[-5:] if e.id != event_id]
+                articles = self.reporter.generate_articles(
+                    event=target_event,
+                    outlets=self.media_outlets,
+                    context_events=context_events,
+                )
+                news_list = [article.to_news() for article in articles]
+
+                # Reporter 경로에서도 기존 데이터 파이프라인 호환을 위해 Firestore 저장
+                for article in articles:
+                    save_news_article(
+                        sim_id=self._get_sim_id(),
+                        event_id=event_id,
+                        news_id=article.id,
+                        media_name=article.media,
+                        article_text=article.body,
+                        meta={
+                            "outlet_bias": article.stance_score,
+                            "outlet_credibility": article.confidence,
+                            "generation_method": "reporter_based",
+                        }
+                    )
             
             # 생성된 뉴스들을 히스토리에 추가
             for news in news_list:
@@ -318,6 +356,12 @@ class SimulationEngine:
             
         except Exception as e:
             print(f"뉴스 기사 생성 중 오류: {e}")
+
+    def set_news_generation_backend(self, backend: str):
+        """뉴스 생성 백엔드 설정 (reporter | announcer)"""
+        if backend not in ["reporter", "announcer"]:
+            raise ValueError("backend는 'reporter' 또는 'announcer' 이어야 합니다.")
+        self.news_generation_backend = backend
     
     # 시뮬레이션 ID를 정하는 규칙(예시) — 외부에서 주입받거나 생성 규칙에 맞게 구현
     def _get_sim_id(self) -> str:
