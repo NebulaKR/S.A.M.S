@@ -164,6 +164,11 @@ GET /api/portfolio/data/
 - 관리자 대시보드 (`admin_dashboard.html`)
 - 실시간 데이터 시각화 및 제어
 
+#### 6. Reporter (`core/models/reporter/reporter.py`)
+- Event를 입력으로 받아 언론사별 Article(News) 생성 전담
+- 매체 bias/credibility 기반으로 같은 Event를 다르게 서술
+- LLM 실패 시 fallback 기사 생성으로 파이프라인 중단 방지
+
 ### 데이터 흐름
 
 ```
@@ -244,6 +249,45 @@ news_list = announcer.generate_news_for_event_from_firestore(
 - 뉴스 대시보드: `/news/`
 - 관리자 대시보드: `/admin/` (관리자 권한 필요)
 - 포트폴리오 대시보드: `/portfolio/`
+
+
+### 4. Reporter로 기사 생성
+```python
+from core.models.reporter import Reporter
+from core.models.announcer.news import Media
+from core.models.announcer.event import Event
+
+reporter = Reporter()
+outlets = [
+    Media("조선일보", -0.8, 0.7),
+    Media("한겨레", 0.8, 0.8),
+]
+
+event_obj = Event(
+    id="event-123",
+    event_type="기준금리 인상 시사",
+    category="정책",
+    sentiment=-0.2,
+    impact_level=4,
+    duration="mid",
+)
+
+# 1) 기사 도메인 객체(Article) 생성
+articles = reporter.generate_articles(event=event_obj, outlets=outlets)
+
+# 2) 기존 호환이 필요하면 News로 변환
+news_items = reporter.generate_news(event=event_obj, outlets=outlets)
+```
+
+
+### 5. 뉴스 생성 백엔드 선택 (Engine 통합)
+```python
+from core.models.simulation_engine import SimulationEngine
+
+engine = SimulationEngine(initial_data)
+engine.set_news_generation_backend("reporter")  # 기본값: reporter
+# engine.set_news_generation_backend("announcer")  # 레거시 경로
+```
 
 ## 📁 데이터 구조
 
@@ -351,6 +395,11 @@ DEBUG=True
 ### 의존성 설치
 ```bash
 pip install -r requirements.txt
+```
+
+### 개발/테스트 의존성 설치
+```bash
+pip install -r requirements-dev.txt
 ```
 
 ### 데이터베이스 마이그레이션
