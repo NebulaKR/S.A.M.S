@@ -321,27 +321,37 @@ class SimulationEngine:
                     print(f"뉴스 생성 대상 이벤트를 찾을 수 없습니다: {event_id}")
                     return
 
-                context_events = [e.event for e in self.events_history[-5:] if e.id != event_id]
-                articles = self.reporter.generate_articles(
-                    event=target_event,
-                    outlets=self.media_outlets,
-                    context_events=context_events,
-                )
-                news_list = [article.to_news() for article in articles]
+                try:
+                    context_events = [e.event for e in self.events_history[-5:] if e.id != event_id]
+                    articles = self.reporter.generate_articles(
+                        event=target_event,
+                        outlets=self.media_outlets,
+                        context_events=context_events,
+                    )
+                    news_list = [article.to_news() for article in articles]
 
-                # Reporter 경로에서도 기존 데이터 파이프라인 호환을 위해 Firestore 저장
-                for article in articles:
-                    save_news_article(
+                    # Reporter 경로에서도 기존 데이터 파이프라인 호환을 위해 Firestore 저장
+                    for article in articles:
+                        save_news_article(
+                            sim_id=self._get_sim_id(),
+                            event_id=event_id,
+                            news_id=article.id,
+                            media_name=article.media,
+                            article_text=article.body,
+                            meta={
+                                "outlet_bias": article.stance_score,
+                                "outlet_credibility": article.confidence,
+                                "generation_method": "reporter_based",
+                            }
+                        )
+                except Exception as reporter_error:
+                    # Reporter 경로 실패 시 Announcer 경로로 폴백
+                    print(f"[fallback] reporter 경로 실패, announcer로 전환: {reporter_error}")
+                    news_list = self.announcer.generate_news_for_event_from_firestore(
                         sim_id=self._get_sim_id(),
                         event_id=event_id,
-                        news_id=article.id,
-                        media_name=article.media,
-                        article_text=article.body,
-                        meta={
-                            "outlet_bias": article.stance_score,
-                            "outlet_credibility": article.confidence,
-                            "generation_method": "reporter_based",
-                        }
+                        outlets=self.media_outlets,
+                        context_events_limit=5
                     )
             
             # 생성된 뉴스들을 히스토리에 추가

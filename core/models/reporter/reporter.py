@@ -40,6 +40,8 @@ class Reporter:
 
             try:
                 article_text = self._postprocess(query_llm(prompt).strip())
+                if article_text == "기사 생성에 실패했습니다.":
+                    article_text = self._fallback_article(event=event, outlet=outlet)
             except Exception:
                 article_text = self._fallback_article(event=event, outlet=outlet)
 
