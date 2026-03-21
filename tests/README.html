@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html>
+<head><meta charset='utf-8'><title>SAMS 테스트 시스템</title></head>
+<body>
+<h1>SAMS 테스트 시스템</h1>
+<p>Firebase API 호출 없이 로컬에서 데이터베이스 관련 테스트를 실행할 수 있는 시스템입니다.</p>
+<h2>🎯 주요 기능</h2>
+<ul>
+<li><strong>Firebase API 호출 최소화</strong>: 실제 Firebase 호출 없이 테스트 실행</li>
+<li><strong>TSV 형식 로그</strong>: 테스트 결과를 탭 구분 형식으로 저장</li>
+<li><strong>JSON 데이터 저장</strong>: 상세한 테스트 데이터를 JSON으로 저장</li>
+<li><strong>성능 벤치마크</strong>: 다양한 데이터 크기로 성능 테스트</li>
+<li><strong>모킹 시스템</strong>: Firebase 기능을 완전히 모킹</li>
+</ul>
+<h2>📁 파일 구조</h2>
+<pre><code>tests/
+├── README.md                    # 이 파일
+├── run_tests.py                 # 테스트 실행 스크립트
+├── integrated_database_test.py  # 통합 테스트
+├── test_logger.py              # 테스트 로거 시스템
+├── mock_firebase.py            # Firebase 모킹 시스템
+├── test_data_generator.py      # 테스트 데이터 생성기
+└── logs/                       # 생성된 로그 파일들
+    ├── *.tsv                   # TSV 형식 로그
+    └── *.json                  # JSON 형식 데이터
+</code></pre>
+<h2>🚀 사용법</h2>
+<h3>1. 간단한 실행</h3>
+<pre><code class="language-bash">cd tests
+python run_tests.py
+</code></pre>
+<h3>2. 개별 테스트 실행</h3>
+<pre><code class="language-bash"># 통합 데이터베이스 테스트
+python integrated_database_test.py
+
+# 데이터 생성기 테스트
+python test_data_generator.py
+
+# Firebase 모킹 테스트
+python mock_firebase.py
+
+# 로거 시스템 테스트
+python test_logger.py
+</code></pre>
+<h2>📊 생성되는 파일들</h2>
+<h3>TSV 파일 (탭 구분 형식)</h3>
+<ul>
+<li><code>integrated_database_test_YYYYMMDD_HHMMSS.tsv</code>: 테스트 실행 로그</li>
+<li><code>export_test_simulations_YYYYMMDD_HHMMSS.tsv</code>: 시뮬레이션 데이터</li>
+<li><code>export_test_events_YYYYMMDD_HHMMSS.tsv</code>: 이벤트 데이터</li>
+<li><code>export_test_news_YYYYMMDD_HHMMSS.tsv</code>: 뉴스 데이터</li>
+<li><code>export_test_snapshots_YYYYMMDD_HHMMSS.tsv</code>: 스냅샷 데이터</li>
+</ul>
+<h3>JSON 파일</h3>
+<ul>
+<li><code>integrated_database_test_YYYYMMDD_HHMMSS.json</code>: 상세 테스트 데이터</li>
+<li><code>integrated_database_test_summary.json</code>: 테스트 요약 정보</li>
+<li><code>export_test_complete_YYYYMMDD_HHMMSS.json</code>: 전체 데이터</li>
+<li><code>export_test_statistics_YYYYMMDD_HHMMSS.json</code>: 통계 정보</li>
+</ul>
+<h2>🔧 테스트 구성 요소</h2>
+<h3>1. TestLogger</h3>
+<ul>
+<li>테스트 결과를 TSV 형식으로 저장</li>
+<li>실행 시간, 상태, 오류 메시지 등 기록</li>
+<li>JSON 형식으로 상세 데이터 저장</li>
+</ul>
+<h3>2. MockFirebaseSystem</h3>
+<ul>
+<li>Firebase Firestore 기능을 완전히 모킹</li>
+<li>실제 API 호출 없이 데이터베이스 작업 시뮬레이션</li>
+<li>통계 조회, 데이터 생성/조회 기능 제공</li>
+</ul>
+<h3>3. TestDataGenerator</h3>
+<ul>
+<li>현실적인 테스트 데이터 생성</li>
+<li>시뮬레이션, 이벤트, 뉴스, 스냅샷 데이터 생성</li>
+<li>TSV 및 JSON 형식으로 데이터 내보내기</li>
+</ul>
+<h3>4. IntegratedDatabaseTest</h3>
+<ul>
+<li>모든 테스트를 통합하여 실행</li>
+<li>성능 벤치마크 포함</li>
+<li>종합적인 테스트 결과 제공</li>
+</ul>
+<h2>📈 성능 벤치마크</h2>
+<p>시스템은 다양한 데이터 크기로 성능을 테스트합니다:</p>
+<ul>
+<li><strong>1개 시뮬레이션</strong>: ~1ms (63,974 records/sec)</li>
+<li><strong>3개 시뮬레이션</strong>: ~1ms (158,912 records/sec)</li>
+<li><strong>5개 시뮬레이션</strong>: ~2ms (108,714 records/sec)</li>
+<li><strong>10개 시뮬레이션</strong>: ~4ms (144,535 records/sec)</li>
+</ul>
+<h2>🎯 테스트 항목</h2>
+<h3>1. 데이터 생성 테스트</h3>
+<ul>
+<li>시뮬레이션 데이터 생성</li>
+<li>이벤트, 뉴스, 스냅샷 데이터 생성</li>
+<li>실행 시간 및 성능 측정</li>
+</ul>
+<h3>2. Firebase 모킹 테스트</h3>
+<ul>
+<li>모킹된 Firebase 시스템 동작 확인</li>
+<li>통계 조회 기능 테스트</li>
+<li>데이터 무결성 검증</li>
+</ul>
+<h3>3. 데이터 내보내기 테스트</h3>
+<ul>
+<li>TSV 형식으로 데이터 내보내기</li>
+<li>JSON 형식으로 데이터 내보내기</li>
+<li>파일 생성 및 저장 확인</li>
+</ul>
+<h3>4. 성능 벤치마크 테스트</h3>
+<ul>
+<li>다양한 데이터 크기로 성능 측정</li>
+<li>처리 속도 및 메모리 사용량 확인</li>
+<li>확장성 검증</li>
+</ul>
+<h2>🔍 로그 분석</h2>
+<h3>TSV 파일 분석</h3>
+<pre><code class="language-bash"># Windows PowerShell
+Get-Content logs/integrated_database_test_*.tsv | Select-Object -First 10
+
+# Linux/Mac
+head -10 logs/integrated_database_test_*.tsv
+</code></pre>
+<h3>JSON 파일 분석</h3>
+<pre><code class="language-python">import json
+
+# 통계 정보 확인
+with open('logs/integrated_database_test_summary.json', 'r') as f:
+    summary = json.load(f)
+    print(f&quot;총 실행 시간: {summary['total_execution_time_seconds']}초&quot;)
+    print(f&quot;전체 상태: {summary['overall_status']}&quot;)
+</code></pre>
+<h2>🛠️ 커스터마이징</h2>
+<h3>테스트 데이터 크기 조정</h3>
+<pre><code class="language-python"># integrated_database_test.py에서 수정
+data = self.data_generator.generate_all_test_data(num_simulations=10)  # 기본값: 3
+</code></pre>
+<h3>로그 디렉토리 변경</h3>
+<pre><code class="language-python"># test_logger.py에서 수정
+logger = TestLogger(&quot;test_name&quot;, log_dir=&quot;custom_logs&quot;)
+</code></pre>
+<h3>성능 벤치마크 범위 조정</h3>
+<pre><code class="language-python"># integrated_database_test.py에서 수정
+test_sizes = [1, 5, 10, 20]  # 기본값: [1, 3, 5, 10]
+</code></pre>
+<h2>📝 주의사항</h2>
+<ol>
+<li><strong>Firebase API 호출 없음</strong>: 이 테스트 시스템은 실제 Firebase에 연결하지 않습니다.</li>
+<li><strong>로컬 파일 저장</strong>: 모든 데이터는 로컬 파일로 저장됩니다.</li>
+<li><strong>메모리 사용량</strong>: 대용량 데이터 생성 시 메모리 사용량이 증가할 수 있습니다.</li>
+<li><strong>파일 권한</strong>: logs/ 폴더에 대한 쓰기 권한이 필요합니다.</li>
+</ol>
+<h2>🎉 장점</h2>
+<ul>
+<li><strong>비용 절약</strong>: Firebase API 호출 비용 없이 테스트 가능</li>
+<li><strong>빠른 실행</strong>: 네트워크 지연 없이 로컬에서 빠르게 실행</li>
+<li><strong>상세한 로그</strong>: TSV 형식으로 테스트 결과를 쉽게 분석</li>
+<li><strong>확장 가능</strong>: 새로운 테스트 케이스를 쉽게 추가 가능</li>
+<li><strong>디버깅 용이</strong>: 상세한 오류 메시지와 실행 로그 제공</li>
+</ul>
+</body>
+</html>

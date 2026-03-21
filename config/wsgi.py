@@ -1,9 +1,10 @@
 """
-WSGI config for config project.
+config 프로젝트의 WSGI 설정입니다.
 
-It exposes the WSGI callable as a module-level variable named ``application``.
+이 파일은 WSGI 호출 가능 객체를 ``application``이라는 모듈 변수로
+노출합니다.
 
-For more information on this file, see
+자세한 내용은 다음 문서를 참고하세요:
 https://docs.djangoproject.com/en/5.2/howto/deployment/wsgi/
 """
 

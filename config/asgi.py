@@ -1,9 +1,10 @@
 """
-ASGI config for config project.
+config 프로젝트의 ASGI 설정입니다.
 
-It exposes the ASGI callable as a module-level variable named ``application``.
+이 파일은 ASGI 호출 가능 객체를 ``application``이라는 모듈 수준 변수로
+노출합니다.
 
-For more information on this file, see
+자세한 내용은 다음 문서를 참조하세요:
 https://docs.djangoproject.com/en/5.2/howto/deployment/asgi/
 """
 

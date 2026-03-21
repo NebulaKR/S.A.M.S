@@ -18,7 +18,7 @@ class ReporterConfig:
 
 
 class Reporter:
-    """Generate per-media articles from Event, then optionally map to News."""
+    """각 언론사별 기사를 Event로부터 생성한 뒤, 필요시 News로 변환하는 기능입니다."""
 
     def __init__(self, config: ReporterConfig | None = None):
         self.config = config or ReporterConfig()

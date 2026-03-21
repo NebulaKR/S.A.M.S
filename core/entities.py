@@ -13,12 +13,13 @@ class Public:
         self.news_sensitivity = news_sensitivity  # 0 ~ 1
 
 class Company:
-    def __init__(self, industry: str, orientation: float, size: str, rnd_focus: float, volatility: float):
+    def __init__(self, industry: str, orientation: float, size: str, rnd_focus: float, volatility: float, total_shares: int = 0):
         self.industry = industry              # e.g., "IT", "식품"
         self.orientation = orientation        # -1 ~ +1 (보수적~혁신적)
         self.size = size                      # "대기업", "중견", "스타트업"
         self.rnd_focus = rnd_focus            # 0 ~ 1
         self.volatility = volatility          # 0 ~ 1
+        self.total_shares = total_shares      # 발행 주식 수 또는 유통 주식 수 (단위: 주)
 
 class Government:
     def __init__(self, policy_direction: float, interest_rate: float, tax_policy: float, industry_support: dict):

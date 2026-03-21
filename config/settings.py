@@ -51,22 +51,22 @@ for credential_path in firebase_credential_candidates:
 
 if not firebase_initialized:
     print("⚠️ Firebase 자격 증명 파일을 찾을 수 없습니다. 개발 모드로 실행됩니다.")
-# Build paths inside the project like this: BASE_DIR / 'subdir'.
+# 프로젝트 내부 경로는 이렇게 생성합니다: BASE_DIR / '하위디렉토리'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 
-# Quick-start development settings - unsuitable for production
-# See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
+# 빠른 시작 개발 설정 - 운영 환경에는 부적합
+# 배포 체크리스트 참조: https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
-# SECURITY WARNING: keep the secret key used in production secret!
+# 보안 경고: 운영 환경에선 비밀키를 반드시 비공개로 유지하세요!
 SECRET_KEY = 'django-insecure-5vx-0u!$^+pm8ns3njcc2ni_4r6#nxx)be(s@t&ofw1fthk0i^'
 
-# SECURITY WARNING: don't run with debug turned on in production!
+# 보안 경고: 운영 환경에서는 DEBUG 모드를 켜지 마세요!
 DEBUG = True
 
 ALLOWED_HOSTS = []
 
-# Application definition
+# 애플리케이션 정의
 
 INSTALLED_APPS = [
     'django.contrib.admin',
@@ -92,7 +92,7 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
 
-# CORS (프론트 도메인에 맞게 수정)
+# CORS 설정 (프론트엔드 도메인에 맞춰 수정)
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",                      # 로컬 프론트
     "https://<your-app>.web.app",                 # Firebase Hosting
@@ -125,8 +125,8 @@ TEMPLATES = [
 WSGI_APPLICATION = 'config.wsgi.application'
 
 
-# Database
-# https://docs.djangoproject.com/en/5.2/ref/settings/#databases
+# 데이터베이스
+# 문서: https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
 DATABASES = {
     'default': {
@@ -136,8 +136,8 @@ DATABASES = {
 }
 
 
-# Password validation
-# https://docs.djangoproject.com/en/5.2/ref/settings/#auth-password-validators
+# 비밀번호 검증
+# 문서: https://docs.djangoproject.com/en/5.2/ref/settings/#auth-password-validators
 
 AUTH_PASSWORD_VALIDATORS = [
     {
@@ -155,8 +155,8 @@ AUTH_PASSWORD_VALIDATORS = [
 ]
 
 
-# Internationalization
-# https://docs.djangoproject.com/en/5.2/topics/i18n/
+# 국제화 설정
+# 문서: https://docs.djangoproject.com/en/5.2/topics/i18n/
 
 LANGUAGE_CODE = 'en-us'
 
@@ -167,8 +167,8 @@ USE_I18N = True
 USE_TZ = False
 
 
-# Static files (CSS, JavaScript, Images)
-# https://docs.djangoproject.com/en/5.2/howto/static-files/
+# 정적 파일 (CSS, JavaScript, 이미지)
+# 문서: https://docs.djangoproject.com/en/5.2/howto/static-files/
 
 STATIC_URL = '/static/'
 STATIC_ROOT = BASE_DIR / 'static'
@@ -176,8 +176,8 @@ STATIC_ROOT = BASE_DIR / 'static'
 # 개발 환경에서는 기본 Django 정적 파일 서빙 사용
 # 프로덕션 배포 시에만 whitenoise 사용
 
-# Default primary key field type
-# https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
+# 기본 기본키 필드 타입
+# 문서: https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 

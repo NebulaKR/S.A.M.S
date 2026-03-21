@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html>
+<head><meta charset='utf-8'><title>SAMS 뉴스 기사 생성 기능</title></head>
+<body>
+<h1>SAMS 뉴스 기사 생성 기능</h1>
+<h2>개요</h2>
+<p>SAMS(Stock AI Market Simulation) 시스템에서 이벤트 발생 후 자동으로 뉴스 기사를 생성하는 기능입니다. 파이어스토어에 저장된 이벤트 로그를 기반으로 다양한 언론사의 성향과 신뢰도를 반영한 뉴스 기사를 생성합니다.</p>
+<h2>주요 기능</h2>
+<h3>1. 자동 뉴스 기사 생성</h3>
+<ul>
+<li>이벤트 발생 시 자동으로 뉴스 기사 생성</li>
+<li>15개 주요 언론사 설정 (보수/진보/중립 성향)</li>
+<li>언론사별 성향과 신뢰도 반영</li>
+<li>파이어스토어에 이벤트 로그와 뉴스 기사 저장</li>
+</ul>
+<h3>2. 언론사 설정</h3>
+<ul>
+<li><strong>보수적 언론</strong>: 조선일보, 중앙일보, 한국일보, 동아일보</li>
+<li><strong>진보적 언론</strong>: 경향신문, 한겨레</li>
+<li><strong>중립 언론</strong>: 서울신문, 매일경제, 한국경제, 이데일리, 머니투데이</li>
+<li><strong>방송사</strong>: SBS, KBS, MBC, YTN</li>
+</ul>
+<h3>3. 뉴스 생성 프로세스</h3>
+<ol>
+<li>이벤트 발생 → 파이어스토어에 이벤트 로그 저장</li>
+<li>이벤트 로그 조회 → 컨텍스트용 최근 이벤트들 조회</li>
+<li>각 언론사별 뉴스 기사 생성 → LLM을 통한 자연어 생성</li>
+<li>생성된 뉴스 기사를 파이어스토어에 저장</li>
+</ol>
+<h2>사용법</h2>
+<h3>1. 시뮬레이션에서 뉴스 기사 생성 활성화</h3>
+<pre><code class="language-python">from core.models.simulation_engine import SimulationEngine
+
+# 시뮬레이션 엔진 초기화
+engine = SimulationEngine(initial_data)
+
+# 뉴스 기사 생성 활성화
+engine.enable_news_generation(True)
+
+# 뉴스 업데이트 콜백 등록
+def on_news_update(news):
+    print(f&quot;뉴스 생성: {news.media} - {news.id}&quot;)
+
+engine.add_callback(&quot;news_update&quot;, on_news_update)
+
+# 시뮬레이션 시작
+engine.start()
+</code></pre>
+<h3>2. 기존 이벤트에 대한 뉴스 기사 생성</h3>
+<pre><code class="language-python">from core.models.announcer.announcer import Announcer
+from core.models.announcer.news import Media
+
+# Announcer 초기화
+announcer = Announcer()
+
+# 언론사 설정
+outlets = [
+    Media(name=&quot;조선일보&quot;, bias=-0.8, credibility=0.7),      # 보수적
+    Media(name=&quot;한겨레&quot;, bias=0.7, credibility=0.8),         # 진보적
+    Media(name=&quot;매일경제&quot;, bias=0.0, credibility=0.8),       # 중립 (경제 전문)
+]
+
+# 특정 이벤트에 대한 뉴스 기사 생성
+news_list = announcer.generate_news_for_event_from_firestore(
+    sim_id=&quot;your_simulation_id&quot;,
+    event_id=&quot;event_123&quot;,
+    outlets=outlets,
+    context_events_limit=5
+)
+
+print(f&quot;{len(news_list)}개의 뉴스 기사가 생성되었습니다.&quot;)
+</code></pre>
+<h3>3. 여러 이벤트에 대한 일괄 뉴스 기사 생성</h3>
+<pre><code class="language-python"># 여러 이벤트 ID 목록
+event_ids = [&quot;event_1&quot;, &quot;event_2&quot;, &quot;event_3&quot;]
+
+# 일괄 뉴스 기사 생성
+results = announcer.generate_news_for_multiple_events(
+    sim_id=&quot;your_simulation_id&quot;,
+    event_ids=event_ids,
+    outlets=outlets,
+    context_events_limit=5
+)
+
+# 결과 확인
+for event_id, news_list in results.items():
+    print(f&quot;이벤트 {event_id}: {len(news_list)}개 뉴스 기사&quot;)
+</code></pre>
+<h3>4. 테스트 스크립트 실행</h3>
+<pre><code class="language-bash"># 뉴스 기사 생성 기능 테스트
+python test_news_generation.py
+</code></pre>
+<h2>저장되는 데이터 구조</h2>
+<h3>이벤트 로그</h3>
+<pre><code class="language-json">{
+  &quot;event&quot;: {
+    &quot;id&quot;: &quot;event_123&quot;,
+    &quot;event_type&quot;: &quot;기업 실적 발표&quot;,
+    &quot;category&quot;: &quot;기업&quot;,
+    &quot;sentiment&quot;: 0.3,
+    &quot;impact_level&quot;: 4,
+    &quot;duration&quot;: &quot;mid&quot;
+  },
+  &quot;affected_stocks&quot;: [&quot;005930&quot;, &quot;000660&quot;],
+  &quot;market_impact&quot;: 0.15,
+  &quot;simulation_time&quot;: &quot;2024-01-15T10:30:00&quot;,
+  &quot;created_at&quot;: &quot;2024-01-15T10:30:00&quot;,
+  &quot;meta&quot;: {&quot;reason&quot;: &quot;event_occurred&quot;}
+}
+</code></pre>
+<h3>뉴스 기사</h3>
+<pre><code class="language-json">{
+  &quot;news_id&quot;: &quot;news_456&quot;,
+  &quot;media_name&quot;: &quot;조선일보&quot;,
+  &quot;article_text&quot;: &quot;삼성전자가 예상치를 상회하는 실적을 발표했다...&quot;,
+  &quot;created_at&quot;: &quot;2024-01-15T10:30:30&quot;,
+  &quot;meta&quot;: {
+    &quot;outlet_bias&quot;: -0.8,
+    &quot;outlet_credibility&quot;: 0.7,
+    &quot;generation_method&quot;: &quot;firestore_based&quot;
+  }
+}
+</code></pre>
+<h2>Firebase 저장 구조</h2>
+<pre><code>simulations/
+  {simulation_id}/
+    events/
+      {event_id}/
+        - event: {...}
+        - affected_stocks: [...]
+        - market_impact: 0.15
+        - simulation_time: &quot;...&quot;
+        - created_at: &quot;...&quot;
+        - meta: {...}
+        news/
+          {news_id}/
+            - news_id: &quot;...&quot;
+            - media_name: &quot;조선일보&quot;
+            - article_text: &quot;...&quot;
+            - created_at: &quot;...&quot;
+            - meta: {...}
+    snapshots/
+      {snapshot_id}/
+        - stocks: {...}
+        - market_params: {...}
+        - simulation_time: &quot;...&quot;
+        - created_at: &quot;...&quot;
+        - meta: {...}
+</code></pre>
+<h2>언론사 성향 설정</h2>
+<h3>Bias (편향성)</h3>
+<ul>
+<li><strong>-1.0 ~ -0.5</strong>: 보수적 언론</li>
+<li><strong>-0.5 ~ 0.5</strong>: 중립 언론</li>
+<li><strong>0.5 ~ 1.0</strong>: 진보적 언론</li>
+</ul>
+<h3>Credibility (신뢰도)</h3>
+<ul>
+<li><strong>0.0 ~ 1.0</strong>: 언론사의 신뢰도 (높을수록 신뢰도 높음)</li>
+</ul>
+<h3>언론사별 설정</h3>
+<pre><code class="language-python">Media(name=&quot;조선일보&quot;, bias=-0.8, credibility=0.7),      # 보수적
+Media(name=&quot;중앙일보&quot;, bias=-0.6, credibility=0.8),      # 보수적
+Media(name=&quot;한국일보&quot;, bias=-0.7, credibility=0.6),      # 보수적
+Media(name=&quot;동아일보&quot;, bias=-0.5, credibility=0.7),      # 중도보수
+Media(name=&quot;경향신문&quot;, bias=0.6, credibility=0.7),       # 진보적
+Media(name=&quot;한겨레&quot;, bias=0.7, credibility=0.8),         # 진보적
+Media(name=&quot;서울신문&quot;, bias=0.0, credibility=0.6),       # 중립
+Media(name=&quot;매일경제&quot;, bias=0.0, credibility=0.8),       # 중립 (경제 전문)
+Media(name=&quot;한국경제&quot;, bias=0.0, credibility=0.7),       # 중립 (경제 전문)
+Media(name=&quot;이데일리&quot;, bias=0.0, credibility=0.6),       # 중립
+Media(name=&quot;머니투데이&quot;, bias=0.0, credibility=0.7),     # 중립 (경제 전문)
+Media(name=&quot;SBS&quot;, bias=0.0, credibility=0.8),            # 중립 (방송)
+Media(name=&quot;KBS&quot;, bias=0.0, credibility=0.9),            # 중립 (방송)
+Media(name=&quot;MBC&quot;, bias=0.1, credibility=0.8),            # 약간 진보 (방송)
+Media(name=&quot;YTN&quot;, bias=0.0, credibility=0.7),            # 중립 (방송)
+</code></pre>
+<h2>뉴스 생성 프롬프트 구조</h2>
+<h3>입력 정보</h3>
+<ol>
+<li><strong>과거 이벤트 컨텍스트</strong>: 최근 5개 이벤트 요약</li>
+<li><strong>현재 이벤트 정보</strong>: </li>
+<li>이벤트 제목, 카테고리, 감성 점수</li>
+<li>영향 수준, 지속 기간</li>
+<li>영향받는 종목, 시장 영향도</li>
+<li><strong>언론사 정보</strong>: 이름, 성향, 신뢰도</li>
+</ol>
+<h3>출력 요구사항</h3>
+<ul>
+<li>뉴스 기사 본문만 출력</li>
+<li>250~400자 내외</li>
+<li>한국어로 자연스럽게 작성</li>
+<li>언론사 성향에 따른 보도 톤 조절</li>
+</ul>
+<h2>성능 최적화</h2>
+<h3>1. 뉴스 생성 빈도 조정</h3>
+<pre><code class="language-python"># 뉴스 생성 비활성화 (성능 향상)
+engine.enable_news_generation(False)
+
+# 필요한 시점에만 수동으로 뉴스 생성
+announcer.generate_news_for_event_from_firestore(...)
+</code></pre>
+<h3>2. 컨텍스트 이벤트 수 조정</h3>
+<pre><code class="language-python"># 컨텍스트로 사용할 이벤트 수 조정
+news_list = announcer.generate_news_for_event_from_firestore(
+    sim_id=sim_id,
+    event_id=event_id,
+    outlets=outlets,
+    context_events_limit=3  # 기본값: 5
+)
+</code></pre>
+<h3>3. 언론사 수 조정</h3>
+<pre><code class="language-python"># 테스트용으로 일부 언론사만 선택
+test_outlets = [
+    Media(name=&quot;조선일보&quot;, bias=-0.8, credibility=0.7),
+    Media(name=&quot;한겨레&quot;, bias=0.7, credibility=0.8),
+    Media(name=&quot;매일경제&quot;, bias=0.0, credibility=0.8),
+]
+</code></pre>
+<h2>확장 가능한 기능</h2>
+<h3>1. 뉴스 기사 분석</h3>
+<ul>
+<li>감정 분석 (긍정/부정/중립)</li>
+<li>키워드 추출</li>
+<li>영향도 측정</li>
+</ul>
+<h3>2. 뉴스 기사 필터링</h3>
+<ul>
+<li>특정 언론사만 선택</li>
+<li>신뢰도 기준 필터링</li>
+<li>성향별 그룹핑</li>
+</ul>
+<h3>3. 뉴스 기사 통계</h3>
+<ul>
+<li>언론사별 기사 수</li>
+<li>이벤트별 보도 빈도</li>
+<li>성향별 보도 패턴</li>
+</ul>
+<h3>4. 실시간 뉴스 피드</h3>
+<ul>
+<li>웹 대시보드에서 실시간 뉴스 표시</li>
+<li>언론사별 탭 분리</li>
+<li>검색 및 필터링 기능</li>
+</ul>
+<h2>문제 해결</h2>
+<h3>뉴스 기사가 생성되지 않는 경우</h3>
+<ol>
+<li>이벤트 로그가 파이어스토어에 저장되었는지 확인</li>
+<li>시뮬레이션 ID와 이벤트 ID가 올바른지 확인</li>
+<li>뉴스 생성이 활성화되어 있는지 확인</li>
+<li>LLM 서비스 연결 상태 확인</li>
+</ol>
+<h3>뉴스 기사 품질 문제</h3>
+<ol>
+<li>프롬프트 템플릿 조정</li>
+<li>컨텍스트 이벤트 수 증가</li>
+<li>언론사 설정 조정</li>
+<li>LLM 모델 변경</li>
+</ol>
+<h3>성능 이슈</h3>
+<ol>
+<li>뉴스 생성 빈도 줄이기</li>
+<li>언론사 수 줄이기</li>
+<li>컨텍스트 이벤트 수 줄이기</li>
+<li>비동기 처리 구현</li>
+</ol>
+<h2>API 엔드포인트 (향후 구현 예정)</h2>
+<pre><code class="language-javascript">// 특정 이벤트의 뉴스 기사 조회
+GET /api/events/{event_id}/news
+
+// 언론사별 뉴스 기사 조회
+GET /api/news?media=조선일보
+
+// 뉴스 기사 통계
+GET /api/news/stats?simulation_id={sim_id}
+</code></pre>
+</body>
+</html>

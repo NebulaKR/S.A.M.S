@@ -26,6 +26,7 @@ def company_to_dict(c: Company) -> Dict[str, Any]:
         "size": str(c.size),
         "rnd_focus": float(c.rnd_focus),
         "volatility": float(c.volatility),
+        "total_shares": int(c.total_shares),
     }
 
 def government_to_dict(g: Government) -> Dict[str, Any]:
@@ -60,6 +61,7 @@ def company_from_dict(d: Dict[str, Any]) -> Company:
         size=str(d.get("size", "")),
         rnd_focus=float(d.get("rnd_focus", 0.0)),
         volatility=float(d.get("volatility", 0.0)),
+        total_shares=int(d.get("total_shares", 0)),
     )
 
 def government_from_dict(d: Dict[str, Any]) -> Government:

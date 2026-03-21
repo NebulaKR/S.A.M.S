@@ -136,7 +136,23 @@ GET /api/portfolio/data/
 
 ## 🏗️ 시스템 구조
 
-### 핵심 컴포넌트
+프로젝트 구성요소는 크게 **시스템 요소**와 **시뮬레이션 요소**로 나뉩니다.
+
+1. **시스템 요소**
+   a. 아나운서
+   b. 리포터
+   c. 코치
+
+2. **시뮬레이션 요소**
+   a. 기업
+   b. 미디어
+   c. 산업
+   d. 투자 그룹(봇)
+   e. 사건
+   f. 기사
+   g. 정부
+
+### 핵심 컴포넌트 (시스템 요소)
 
 #### 1. SimulationEngine (`core/models/simulation_engine.py`)
 - 시뮬레이션의 핵심 엔진
@@ -186,6 +202,43 @@ GET /api/portfolio/data/
    ↓
 7. 웹 대시보드 업데이트
 ```
+
+## 🧠 에이전트 기반 투자 그룹
+
+소규모 초기 시뮬레이션에서 유동성과 다양한 트레이더 성향을 재현하려면
+"봇" 형태의 투자 에이전트를 도입할 수 있습니다. 각 봇은 단순한
+정책 파라미터를 가지며, 상위에 위치한 **코치(Coach)**가 주기적으로
+이 파라미터를 조정합니다.
+
+### 핵심 컴포넌트
+
+- **InvestorBot**: 개별 트레이더를 모델링하는 가벼운 에이전트.
+  자본과 포트폴리오를 유지하며 `decide_orders()`를 통해 매매 신호를
+  생성합니다.
+- **BotGroup**: 동일한 코치를 공유하는 봇들의 집합. `update_group_strategy()`
+  메서드를 호출하면 코치가 계산해준 가중치를 모든 봇에 전파합니다.
+- **AgentCoach**: 기존 `Coach` 클래스와 동일하며, 그룹 전체의 전략
+  파라미터(예: 뉴스 민감도, 위험선호)를 계산합니다.
+
+```python
+from core.models.coach.coach import Coach
+from core.models.agents import BotGroup, InvestorBot
+
+coach = Coach(internal_params)
+group = BotGroup("alpha", coach)
+for i in range(3):
+    group.add_bot(InvestorBot(f"bot{i}", capital=1000))
+
+# 매 턴 이벤트 요약이 나오면 전략 갱신
+weights = group.update_group_strategy(events_summary, external_factors)
+orders = group.collect_orders(market_state)
+```
+
+위 구조는 트레이딩 봇을 손쉽게 추가할 수 있어 유동성 시뮬레이션에
+유용하며, 이후 플레이어 수가 늘어나면 단순 가격 기반 모델로도
+충분히 확장 가능합니다.
+
+---
 
 ## 🎯 사용법
 

@@ -12,7 +12,7 @@ def build_article_prompt(
     outlet: Media,
     context_events: List[Event] | None = None,
 ) -> str:
-    """Build a strict prompt for reporter-LLM article generation."""
+    """Reporter LLM을 위한 엄격한 기사 생성 프롬프트를 만듭니다."""
     context_events = context_events or []
 
     lines: list[str] = [

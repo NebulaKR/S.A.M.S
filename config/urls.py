@@ -1,18 +1,18 @@
 """
-URL configuration for config project.
+config 프로젝트의 URL 설정입니다.
 
-The `urlpatterns` list routes URLs to views. For more information please see:
-    https://docs.djangoproject.com/en/5.2/topics/http/urls/
-Examples:
-Function views
-    1. Add an import:  from my_app import views
-    2. Add a URL to urlpatterns:  path('', views.home, name='home')
-Class-based views
-    1. Add an import:  from other_app.views import Home
-    2. Add a URL to urlpatterns:  path('', Home.as_view(), name='home')
-Including another URLconf
-    1. Import the include() function: from django.urls import include, path
-    2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
+`urlpatterns` 리스트는 URL을 view에 연결합니다. 자세한 내용은
+https://docs.djangoproject.com/en/5.2/topics/http/urls/ 를 참조하세요.
+예시:
+함수 기반 뷰
+    1. import 추가: from my_app import views
+    2. urlpatterns에 URL 추가: path('', views.home, name='home')
+클래스 기반 뷰
+    1. import 추가: from other_app.views import Home
+    2. urlpatterns에 URL 추가: path('', Home.as_view(), name='home')
+다른 URLconf 포함
+    1. include() 함수 import: from django.urls import include, path
+    2. urlpatterns에 추가: path('blog/', include('blog.urls'))
 """
 from django.contrib import admin
 from django.urls import path, include
